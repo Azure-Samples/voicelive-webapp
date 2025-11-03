@@ -1,0 +1,440 @@
+/* VoiceLiveAgent Component Styles - Matching RealTimeAvatar Preview Layout */
+
+.chatbot {
+  position: relative;
+
+  overflow: hidden;
+  display: flex;
+  grid-column: 2;
+  flex-direction: column;
+
+  height: 100%;
+}
+
+/* Main content area - takes remaining space above captions and buttons */
+.main-content-area {
+  overflow: hidden;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 0; /* Important for flex shrinking */
+  padding: var(--spacingXXL);
+}
+
+.empty-chat-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacingVerticalXXXL);
+  align-items: center;
+  justify-content: center;
+}
+
+.circle-base-idle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 138px;
+  height: 138px;
+  border-radius: var(--borderRadiusCircular);
+
+  background: var(--colorBrandBackground);
+}
+
+.avatar-status {
+  margin-top: var(--spacingVerticalXS);
+  text-align: center;
+  max-width: 400px;
+}
+
+.avatar-title {
+  font-size: var(--fontSizeBase600);
+  font-weight: var(--fontWeightSemibold);
+  color: var(--colorNeutralForeground1);
+  margin-bottom: var(--spacingS);
+}
+
+.avatar-subtitle {
+  font-size: var(--fontSizeBase400);
+  color: var(--colorNeutralForeground3);
+  line-height: 1.4;
+}
+
+/* Voice Recorder Panel */
+.voice-recorder-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacingM);
+  align-items: center;
+  justify-content: center;
+}
+
+.circle-wrapper {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 244px;
+  height: 244px;
+}
+
+.circle-stack {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 244px;
+  height: 244px;
+}
+
+/* Concentric circles matching RealTimeAvatar pattern */
+.circle-outer,
+.circle-mid,
+.circle-inner {
+  position: absolute;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: var(--borderRadiusCircular);
+
+  background: var(--colorBrandBackground);
+
+  transition:
+    transform 400ms ease,
+    opacity 400ms ease;
+}
+
+.circle-outer {
+  width: 180px;
+  height: 180px;
+  opacity: 0.2;
+}
+
+.circle-mid {
+  width: 138px;
+  height: 138px;
+  opacity: 0.3;
+}
+
+.circle-inner {
+  width: 100px;
+  height: 100px;
+  opacity: 0.33;
+}
+
+.recorder-status {
+  font-size: var(--fontSizeBase400);
+  color: var(--colorNeutralForeground2);
+  text-align: center;
+}
+
+/* Subtitle Display - Fixed area above action bar */
+.subtitle-container {
+  flex-shrink: 0;
+
+  width: 100%;
+  max-width: 600px;
+  height: 150px;
+  margin: 0 auto var(--spacingM);
+  padding: 0 var(--spacingL);
+}
+
+.voice-subtitle-display {
+  scrollbar-width: thin;
+
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacingS);
+
+  width: 100%;
+  height: 100%;
+  padding: var(--spacingS);
+  border: var(--strokeWidthThin) solid var(--colorNeutralStroke2);
+  border-radius: var(--borderRadiusMedium);
+
+  background-color: var(--colorNeutralBackground2);
+}
+
+.subtitle-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  width: 100%;
+  padding: var(--spacingS) var(--spacingM);
+  border-radius: var(--borderRadiusMedium);
+
+  background-color: var(--colorNeutralBackground1Hover);
+}
+
+.subtitle-message.user {
+  align-self: flex-end;
+  background-color: var(--colorNeutralBackground5);
+}
+
+.subtitle-message.agent {
+  align-self: flex-start;
+}
+
+.message-role {
+  font-size: 11px;
+  font-weight: var(--fontWeightSemibold);
+  color: var(--colorNeutralForeground3);
+  text-transform: uppercase;
+}
+
+.message-content {
+  font-size: var(--fontSizeBase400);
+  color: var(--colorNeutralForeground1);
+}
+
+/* Error Banner */
+.error-banner {
+  margin: var(--spacingM);
+  padding: var(--spacingM);
+  border: var(--strokeWidthThin) solid #d13438;
+  border-radius: var(--borderRadiusMedium);
+
+  color: #a80000;
+
+  background-color: #fde7e9;
+}
+
+/* Lower Section: Action Bar - Fixed at bottom */
+.lower-section {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  align-items: center;
+
+  width: 100%;
+  padding: var(--spacingM) var(--spacingL) var(--spacingL);
+}
+
+.action-bar {
+  display: flex;
+  gap: var(--spacingS);
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+}
+
+/* Icon Button */
+.icon-button {
+  cursor: pointer;
+
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: var(--spacingHorizontalXXXL);
+  height: var(--spacingHorizontalXXXL);
+  padding: var(--spacingS);
+  border: none;
+  border-radius: var(--borderRadiusCircular);
+
+  color: var(--colorNeutralForeground2);
+
+  background: transparent;
+
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.icon-button:hover {
+  color: var(--colorNeutralForeground1);
+  background: var(--colorNeutralBackground1Hover);
+}
+
+.icon-button:active {
+  background: var(--colorNeutralBackground3Selected);
+}
+
+.icon-button:focus-visible {
+  outline: 2px solid var(--colorBrandStroke1);
+  outline-offset: 2px;
+}
+
+/* Mic Only Button (Indicator) */
+.mic-only-button {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: var(--spacingHorizontalXXXL);
+  height: var(--spacingHorizontalXXXL);
+  padding: var(--spacingS);
+  border: var(--strokeWidthThin) solid var(--colorBrandBackground);
+  border-radius: var(--borderRadiusCircular);
+
+  color: var(--colorBrandBackground);
+
+  background: transparent;
+}
+
+/* Primary Action Button (Start/Stop) */
+.vr-primary-action-button {
+  cursor: pointer;
+
+  position: relative;
+
+  display: flex;
+  gap: var(--spacingSNudge);
+  align-items: center;
+  justify-content: center;
+
+  min-width: 200px;
+  height: var(--spacingHorizontalXXXL);
+  padding: var(--spacingS) var(--spacingXL);
+  border: var(--strokeWidthThin) solid var(--colorNeutralStroke1);
+  border-radius: var(--borderRadiusCircular);
+
+  font-family: 'Aptos', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: var(--fontSizeBase400);
+  font-weight: var(--fontWeightSemibold);
+  line-height: 22px;
+  color: var(--colorNeutralForegroundOnBrand);
+
+  background: var(--colorBrandBackground);
+  box-shadow: none;
+
+  transition:
+    background 120ms ease,
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.vr-primary-action-button:hover:not(:disabled) {
+  background: var(--colorBrandBackgroundHover);
+}
+
+.vr-primary-action-button:active:not(:disabled) {
+  transform: translateY(1px);
+  background: var(--colorBrandBackgroundPressed);
+}
+
+.vr-primary-action-button:focus-visible {
+  outline: 2px solid var(--colorBrandStroke1);
+  outline-offset: 2px;
+}
+
+.vr-primary-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.idle-start-button {
+  /* Specific styles for the idle/start state */
+}
+
+.end-button {
+  /* Specific styles for the stop/end state if needed */
+}
+
+/* Spinner Animation */
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive Design */
+@media (width <= 768px) {
+  .chatbot {
+    gap: var(--spacingL);
+  }
+
+  .voice-subtitle-display {
+    max-height: 300px;
+  }
+
+  .circle-wrapper,
+  .circle-stack {
+    width: 182px;
+    height: 182px;
+  }
+
+  .circle-outer {
+    width: 182px;
+    height: 182px;
+  }
+
+  .circle-mid {
+    width: 138px;
+    height: 138px;
+  }
+
+  .circle-inner {
+    width: 100px;
+    height: 100px;
+  }
+
+  .action-bar {
+    gap: var(--spacingSNudge);
+  }
+}
+
+@media (width <= 480px) {
+  .circle-base-idle {
+    width: 100px;
+    height: 100px;
+  }
+
+  .circle-wrapper,
+  .circle-stack {
+    width: 138px;
+    height: 138px;
+  }
+
+  .circle-outer {
+    width: 138px;
+    height: 138px;
+  }
+
+  .circle-mid {
+    width: 100px;
+    height: 100px;
+  }
+
+  .circle-inner {
+    width: 80px;
+    height: 80px;
+  }
+
+  .vr-primary-action-button {
+    min-width: auto;
+    padding: var(--spacingS) var(--spacingM);
+  }
+}

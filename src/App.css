@@ -1,0 +1,192 @@
+:root {
+  /* Fluent UI Design Tokens */
+  --colorNeutralBackground3Selected: #f5f5f5;
+  --colorNeutralBackground1Hover: #fafafa;
+  --colorNeutralBackground2: #fff;
+  --colorNeutralForeground1: #242424;
+  --colorNeutralForeground2: #424242;
+  --colorNeutralForeground3: #616161;
+  --colorNeutralForeground4: #707070;
+  --colorNeutralStroke1: #d1d1d1;
+  --colorNeutralStroke2: #e0e0e0;
+  --colorBrandBackground: #6264a7;
+  --colorBrandBackgroundHover: #585a96;
+  --colorBrandBackgroundPressed: #4d4f85;
+  --colorBrandStroke1: #6264a7;
+  --colorNeutralForegroundOnBrand: #fff;
+  --colorNeutralBackground5: #f0f0f0;
+
+  /* Spacing tokens */
+  --spacingS: 8px;
+  --spacingSNudge: 6px;
+  --spacingM: 12px;
+  --spacingL: 16px;
+  --spacingXL: 20px;
+  --spacingXXL: 24px;
+  --spacingXXXL: 32px;
+  --spacingVerticalS: 8px;
+  --spacingVerticalXXXL: 32px;
+  --spacingHorizontalXXXL: 40px;
+  --spacingHorizontalXXXXL: 48px;
+  --spacingHorizontalXXXXXL: 64px;
+
+  /* Border radius */
+  --borderRadiusMedium: 4px;
+  --borderRadiusCircular: 9999px;
+
+  /* Stroke width */
+  --strokeWidthThin: 1px;
+  --strokeWidthThick: 2px;
+
+  /* Font */
+  --fontSizeBase200: 12px;
+  --fontSizeBase400: 14px;
+  --fontSizeBase500: 16px;
+  --fontSizeBase600: 20px;
+  --fontWeightSemibold: 600;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  font-family:
+    'Aptos', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
+    Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.preview-wrapper {
+  display: flex;
+  flex-direction: column;
+
+  width: 100%;
+  height: 100vh;
+
+  background-color: var(--colorNeutralBackground3Selected);
+}
+
+.container {
+  position: relative;
+
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+}
+
+.top-bar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  padding: var(--spacingM) var(--spacingL);
+  border-bottom: var(--strokeWidthThin) solid var(--colorNeutralStroke2);
+
+  background-color: var(--colorNeutralBackground2);
+}
+
+.left-section {
+  overflow: hidden;
+  display: flex;
+  flex: 1;
+  gap: var(--spacingM);
+  align-items: center;
+
+  min-width: 0;
+}
+
+.agent-icon-container {
+  display: flex;
+  gap: var(--spacingS);
+  align-items: center;
+}
+
+.agent-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  color: var(--colorBrandBackground);
+}
+
+.agent-name {
+  overflow: hidden;
+
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--colorNeutralForeground1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content {
+  position: relative;
+
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr minmax(min(450px, 100%), 80%) 1fr;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  margin: 0 var(--spacingL) var(--spacingM);
+}
+
+/* Authentication Layout */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacingL);
+  border-bottom: var(--strokeWidthThin) solid var(--colorNeutralStroke2);
+}
+
+.right-section {
+  display: flex;
+  align-items: center;
+}
+
+.content.auth-required {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacingXXXL);
+}
+
+/* Loading State */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacingL);
+  height: 400px;
+  color: var(--colorNeutralForeground3);
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--colorNeutralStroke2);
+  border-top: 3px solid var(--colorBrandBackground);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
