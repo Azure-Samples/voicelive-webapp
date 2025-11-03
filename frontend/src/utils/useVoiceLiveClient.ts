@@ -1,7 +1,8 @@
 import { useRef, useCallback, useState } from 'react';
-import { config, buildWebSocketUrl, getAuthHeaders } from '../config';
+import { config, buildWebSocketUrl } from '../config';
 import { uint8ArrayToBase64 } from './audioCodec';
 import type { ConnectionState } from '../types';
+import { WebRTCAvatarManager } from './WebRTCAvatarManager';
 
 type MessageHandler = (message: any) => void;
 type AudioHandler = (audioData: Uint8Array) => void;
@@ -13,9 +14,11 @@ type TranscriptHandler = (text: string, role: 'user' | 'agent') => void;
  */
 export function useVoiceLiveClient() {
   const wsRef = useRef<WebSocket | null>(null);
+  const avatarManagerRef = useRef<WebRTCAvatarManager | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState['status']>('disconnected');
   const [sessionId, setSessionId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [isAvatarReady, setIsAvatarReady] = useState<boolean>(false);
 
   // Message handlers
   const onMessageHandlerRef = useRef<MessageHandler | null>(null);
@@ -23,12 +26,56 @@ export function useVoiceLiveClient() {
   const onTranscriptHandlerRef = useRef<TranscriptHandler | null>(null);
 
   /**
+   * Send avatar offer to Azure via WebSocket
+   */
+  const sendAvatarOffer = useCallback((sdp: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const offerMessage = {
+        type: 'session.avatar.connect',
+        client_sdp: sdp
+      };
+      wsRef.current.send(JSON.stringify(offerMessage));
+      console.log('📤 Sent avatar offer to Azure');
+    } else {
+      console.error('❌ Cannot send avatar offer: WebSocket not connected');
+    }
+  }, []);
+
+  /**
+   * Initialize avatar manager if avatar is enabled
+   */
+  const initializeAvatarManager = useCallback(() => {
+    if (!avatarManagerRef.current) {
+      console.log('🎭 Initializing WebRTC Avatar Manager...');
+      avatarManagerRef.current = new WebRTCAvatarManager(sendAvatarOffer);
+      
+      // Set up avatar ready callback
+      avatarManagerRef.current.onReady(() => {
+        console.log('✅ Avatar is ready for display');
+        setIsAvatarReady(true);
+      });
+
+      // Set up connection state callback
+      avatarManagerRef.current.onConnectionState((state) => {
+        console.log('🔗 Avatar WebRTC state:', state);
+      });
+    }
+  }, [sendAvatarOffer]);
+
+  /**
+   * Set avatar media elements (foundry pattern compatibility)
+   */
+  const setAvatarMediaElements = useCallback((elements: { video: HTMLVideoElement | null; audio: HTMLAudioElement | null }) => {
+    if (avatarManagerRef.current) {
+      avatarManagerRef.current.setMediaElements(elements);
+    }
+  }, []);
+
+  /**
    * Build session update message
    */
   const buildSessionUpdate = useCallback(() => {
     const { session } = config;
-
-
 
     return {
       type: 'session.update',
@@ -72,7 +119,14 @@ export function useVoiceLiveClient() {
         ...(session.outputAudio.timestampTypes && {
           output_audio_timestamp_types: session.outputAudio.timestampTypes,
         }),
-
+        ...(session.avatar?.enabled && {
+          avatar: {
+            character: session.avatar.character,
+            style: session.avatar.style,
+            customized: session.avatar.customized,
+            ...(session.avatar.video && { video: session.avatar.video }),
+          },
+        }),
       },
     };
   }, []);
@@ -84,16 +138,60 @@ export function useVoiceLiveClient() {
     try {
       const message = JSON.parse(event.data);
       console.log('📩 Received message:', message.type);
+      
+      // Debug: Log full message for avatar-related messages
+      if (message.type === 'session.created' || message.type === 'session.updated' || message.session?.avatar) {
+        console.log('🔍 Full message details:', JSON.stringify(message, null, 2));
+      }
 
       switch (message.type) {
+        case 'proxy.connected':
+          console.log('✅ Connected to Azure proxy:', message.message);
+          break;
+
         case 'session.created':
-          console.log('✅ Session created:', message.session.id);
-          setSessionId(message.session.id);
+          console.log('✅ Session created:', message.session?.id || 'unknown');
+          setSessionId(message.session?.id || 'proxy-session');
           setConnectionState('connected');
+          
+          // Handle avatar setup if ICE servers are provided
+          if (message.session?.avatar?.ice_servers && avatarManagerRef.current) {
+            console.log('🎭 Setting up avatar WebRTC with ICE servers:', message.session.avatar.ice_servers);
+            avatarManagerRef.current.setupPeerConnection(message.session.avatar.ice_servers)
+              .then(() => avatarManagerRef.current?.createOfferAndConnect())
+              .catch(error => {
+                console.error('❌ Avatar setup failed:', error);
+                setIsAvatarReady(false);
+              });
+          }
           break;
 
         case 'session.updated':
           console.log('✅ Session updated');
+          
+          // Handle avatar setup - this is the key message from Azure with ICE servers
+          if (message.session?.avatar?.ice_servers && avatarManagerRef.current) {
+            console.log('🎭 Setting up avatar WebRTC from session update!');
+            console.log('🧊 ICE servers received:', message.session.avatar.ice_servers.length, 'servers');
+            console.log('🔍 Avatar manager exists:', !!avatarManagerRef.current);
+            setIsAvatarReady(false);
+            avatarManagerRef.current.setupPeerConnection(message.session.avatar.ice_servers)
+              .then(() => {
+                console.log('✅ Peer connection setup complete, creating offer...');
+                return avatarManagerRef.current?.createOfferAndConnect();
+              })
+              .catch(error => {
+                console.error('❌ Avatar setup failed:', error);
+                // Avatar setup failed, but continue with voice-only mode
+              });
+          } else {
+            if (!message.session?.avatar?.ice_servers) {
+              console.log('⚠️ No ICE servers in session.updated message');
+            }
+            if (!avatarManagerRef.current) {
+              console.log('⚠️ No avatar manager available');
+            }
+          }
           break;
 
         case 'error':
@@ -145,13 +243,42 @@ export function useVoiceLiveClient() {
           }
           break;
 
-
-
-        default:
-          // Forward other messages to handler
+        case 'response.video.delta':
+          // Avatar video chunk
+          console.log('📹 Avatar video delta received');
           if (onMessageHandlerRef.current) {
             onMessageHandlerRef.current(message);
           }
+          break;
+
+        case 'session.avatar.ready':
+          // Avatar is ready
+          console.log('✅ Avatar ready');
+          if (onMessageHandlerRef.current) {
+            onMessageHandlerRef.current(message);
+          }
+          break;
+
+        default:
+          // Handle SDP answers that might come in various message types
+          if ((message.server_sdp || message.sdp || message.answer) && 
+              message.type !== 'session.update' && avatarManagerRef.current) {
+            console.log('📥 Received SDP answer from Azure:', message.type);
+            const sdp = message.server_sdp || message.sdp || message.answer;
+            avatarManagerRef.current.handleAnswer(sdp)
+              .then(() => {
+                console.log('✅ Avatar WebRTC connection established');
+                setIsAvatarReady(true);
+              })
+              .catch(error => {
+                console.error('❌ Failed to establish avatar connection:', error);
+                setIsAvatarReady(false);
+              });
+          } else if (onMessageHandlerRef.current) {
+            // Forward other messages to handler
+            onMessageHandlerRef.current(message);
+          }
+          break;
       }
     } catch (error) {
       console.error('Error parsing message:', error);
@@ -172,31 +299,19 @@ export function useVoiceLiveClient() {
       setError(null);
 
       const wsUrl = buildWebSocketUrl();
-      const authHeaders = await getAuthHeaders();
+      console.log('🔌 Connecting to FastAPI proxy backend...');
 
-      console.log('🔌 Connecting to Voice Live API...');
-
-      // WebSocket doesn't support custom headers directly
-      // We need to include authentication in the URL
-      let finalUrl = wsUrl;
-      
-      if (authHeaders['api-key']) {
-        finalUrl += `&api-key=${encodeURIComponent(authHeaders['api-key'])}`;
-      } else if (authHeaders['Authorization']) {
-        // For Bearer tokens, extract the token part and add it as a parameter
-        const token = authHeaders['Authorization'].replace('Bearer ', '');
-        finalUrl += `&authorization=${encodeURIComponent(token)}`;
-      }
-
-      const ws = new WebSocket(finalUrl);
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('✅ WebSocket connected');
-
-        // Send session update
-        const sessionUpdate = buildSessionUpdate();
-        ws.send(JSON.stringify(sessionUpdate));
+        console.log('✅ WebSocket connected to proxy backend');
+        
+        // Initialize avatar manager for WebRTC setup
+        initializeAvatarManager();
+        
+        // Backend handles initial session setup with avatar configuration
+        // Just wait for session.updated message with ICE servers
       };
 
       ws.onmessage = handleMessage;
@@ -204,7 +319,7 @@ export function useVoiceLiveClient() {
       ws.onerror = error => {
         console.error('❌ WebSocket error:', error);
         setError('WebSocket connection error');
-        setConnectionState('failed');
+        setConnectionState('error');
       };
 
       ws.onclose = () => {
@@ -214,8 +329,8 @@ export function useVoiceLiveClient() {
       };
     } catch (error) {
       console.error('Connection error:', error);
-      setError(error.message);
-      setConnectionState('failed');
+      setError(error instanceof Error ? error.message : 'Connection failed');
+      setConnectionState('error');
     }
   }, [connectionState, buildSessionUpdate, handleMessage]);
 
@@ -227,8 +342,16 @@ export function useVoiceLiveClient() {
       wsRef.current.close();
       wsRef.current = null;
     }
+    
+    // Cleanup avatar manager
+    if (avatarManagerRef.current) {
+      avatarManagerRef.current.close();
+      avatarManagerRef.current = null;
+    }
+    
     setConnectionState('disconnected');
     setSessionId('');
+    setIsAvatarReady(false);
   }, []);
 
   /**
@@ -254,8 +377,6 @@ export function useVoiceLiveClient() {
     },
     [connectionState],
   );
-
-
 
   /**
    * Send text message to agent
@@ -324,8 +445,6 @@ export function useVoiceLiveClient() {
     onTranscriptHandlerRef.current = handler;
   }, []);
 
-  const isConnected = connectionState === 'connected';
-
   return {
     connect,
     disconnect,
@@ -338,6 +457,10 @@ export function useVoiceLiveClient() {
     connectionState,
     sessionId,
     error,
-    isConnected,
+    isConnected: connectionState === 'connected',
+    // Avatar support
+    isAvatarReady,
+    setAvatarMediaElements,
+    avatarEnabled: config.session.avatar?.enabled || false,
   };
 }

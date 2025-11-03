@@ -1,0 +1,269 @@
+/* Avatar Display Styles - Inspired by azure-ai-foundry VoiceLiveAgent */
+.avatar-display {
+  position: relative;
+
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 24px; /* Use similar spacing to foundry */
+  align-items: center;
+  justify-content: center; /* Center content vertically */
+
+  width: 100%;
+  height: 100%;
+}
+
+/* Avatar container matching foundry structure */
+.avatar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  align-items: center;
+  justify-content: center; /* Center content vertically */
+
+  height: 100%;
+}
+
+/* Image container matching avatar layout */
+.image-container {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-image-container {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+}
+
+/* Foundry-inspired avatar image styling */
+.avatar-image {
+  width: auto;
+  max-width: 800px; /* Limit maximum width */
+  height: auto;
+  max-height: 400px; /* Limit maximum height */
+  object-fit: contain; /* Maintain aspect ratio */
+}
+
+.avatar-video-container {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+}
+
+/* Foundry-inspired visibility classes */
+.visible {
+  opacity: 1;
+}
+
+.hidden {
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* Video element styles matching foundry patterns and avatar image sizing */
+.video-element {
+  width: auto;
+  max-width: 800px; /* Match avatar image max-width */
+  height: auto;
+  max-height: 400px; /* Match avatar image max-height */
+  object-fit: contain; /* Maintain aspect ratio like avatar image */
+  mix-blend-mode: multiply;
+}
+
+.video-element-side-by-side {
+  aspect-ratio: 14 / 9;
+  width: 100%;
+  mix-blend-mode: multiply;
+}
+
+/* Legacy video styles (kept for compatibility) */
+.avatar-video {
+  bottom: 20%;
+  width: 100%;
+  mix-blend-mode: multiply;
+}
+
+.avatar-video-side-by-side {
+  aspect-ratio: 14 / 9;
+  width: 100%;
+  mix-blend-mode: multiply;
+}
+
+/* Avatar loader container */
+.avatar-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+
+  height: 100%;
+  
+  color: #666;
+  text-align: center;
+}
+
+/* Video loader - positioned in the avatar video space */
+.avatar-video-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+
+  /* Match video element dimensions and positioning */
+  width: auto;
+  max-width: 300px; /* Match video-element max-width */
+  height: auto;
+  max-height: 400px; /* Match video-element max-height */
+  min-height: 200px; /* Ensure minimum space for spinner */
+  
+  color: #666;
+  text-align: center;
+}
+
+/* Loading text that doesn't spin */
+.loading-text {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.8;
+  user-select: none;
+}
+
+/* Foundry-inspired loading styles */
+.avatar-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  height: 100%;
+  
+  color: #666;
+  text-align: center;
+}
+
+.avatar-loading p {
+  margin-top: 12px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.error-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+/* Foundry-inspired spinner matching their design */
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgb(102 126 234 / 30%); /* Use foundry brand colors */
+  border-top: 3px solid #667eea;
+  border-radius: 50%;
+
+  animation: spin 1s linear infinite;
+}
+
+/* Full size utility (from foundry) */
+.full-size {
+  width: 100%;
+  height: 100%;
+}
+
+/* Height utilities (from foundry) */
+.height100 {
+  height: 100%;
+}
+
+.heightAuto {
+  height: 100%;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Speaking indicator */
+.speaking-indicator {
+  position: absolute;
+  z-index: 10;
+  top: 16px;
+  right: 16px;
+}
+
+.speaking-ring {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #0f0;
+  border-radius: 50%;
+
+  background-color: rgb(0 255 0 / 20%);
+
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.3);
+    opacity: 0.7;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Responsive adjustments */
+@media (width <= 768px) {
+  .avatar-display {
+    border-radius: 8px;
+  }
+
+  .avatar-loading p {
+    font-size: 12px;
+  }
+
+  .spinner {
+    width: 24px;
+    height: 24px;
+  }
+
+  .speaking-indicator {
+    top: 12px;
+    right: 12px;
+  }
+
+  .speaking-ring {
+    width: 12px;
+    height: 12px;
+  }
+}
