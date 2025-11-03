@@ -63,27 +63,7 @@ export interface OutputAudioConfig {
   chunk_length_ms?: number;
 }
 
-export interface AvatarVideoConfig {
-  bitrate: number;
-  codec: string;
-  resolution: {
-    width: number;
-    height: number;
-  };
-  background: {
-    color?: string;
-    imageUrl?: string;
-  };
-}
 
-export interface AvatarConfig {
-  enabled: boolean;
-  character?: string;
-  style?: string;
-  customized?: boolean;
-  avatarName?: string; // Reference to avatar from AvatarPersonnelList
-  video?: AvatarVideoConfig;
-}
 
 export interface SessionConfig {
   instructions: string;
@@ -92,7 +72,6 @@ export interface SessionConfig {
   turnDetection: TurnDetectionConfig;
   inputAudio: InputAudioConfig;
   outputAudio: OutputAudioConfig;
-  avatar?: AvatarConfig;
   stream?: boolean;
 }
 

@@ -13,6 +13,7 @@ interface AvatarDisplayProps {
   } | null;
   isConnected: boolean;
   isAgentSpeaking: boolean;
+  videoRef?: React.RefObject<HTMLVideoElement>;
   onVideoReady?: (video: HTMLVideoElement) => void;
   onAudioReady?: (audio: HTMLAudioElement) => void;
 }
@@ -21,6 +22,7 @@ export function AvatarDisplay({
   avatar,
   isConnected,
   isAgentSpeaking,
+  videoRef,
   onVideoReady,
   onAudioReady,
 }: AvatarDisplayProps): JSX.Element | null {
@@ -28,20 +30,19 @@ export function AvatarDisplay({
   const [isAvatarReady, setIsAvatarReady] = useState<boolean>(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [loadingTimeout, setLoadingTimeout] = useState<boolean>(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Handle video element ref
+  // Handle video element ref (use passed videoRef or create callback)
   const handleVideoRef = useCallback(
     (el: HTMLVideoElement | null) => {
-      if (!el || videoRef.current === el) return;
-      videoRef.current = el;
+      if (!el) return;
+      if (videoRef?.current && videoRef.current === el) return;
       if (onVideoReady) {
         onVideoReady(el);
       }
     },
-    [onVideoReady],
+    [onVideoReady, videoRef],
   );
 
   // Handle audio element ref
@@ -56,15 +57,15 @@ export function AvatarDisplay({
     [onAudioReady],
   );
 
-  // Reset image loaded state when avatar changes
+  // Reset states when avatar changes
   useEffect(() => {
-    setImageLoaded(false);
+    setImageLoaded(true); // Assume image loads immediately for static avatars
     setIsAvatarReady(false);
     setAvatarError(null);
     setLoadingTimeout(false);
   }, [avatar?.avatarBigImg]);
 
-  // Show avatar ready state when not connected
+  // Reset avatar ready state when not connected
   useEffect(() => {
     if (!isConnected) {
       setIsAvatarReady(false);
@@ -79,12 +80,12 @@ export function AvatarDisplay({
   // Set up loading timeout when connected
   useEffect(() => {
     if (isConnected && !isAvatarReady && !loadingTimeout) {
-      console.log('🎭 Starting avatar loading timeout (10s)');
+      console.log('🎭 Starting avatar loading timeout (5s for development)');
       timeoutRef.current = setTimeout(() => {
-        console.warn('⏰ Avatar loading timeout - taking too long');
+        console.warn('⏰ Avatar loading timeout - no WebRTC connection established');
         setLoadingTimeout(true);
-        setAvatarError('Avatar loading timeout. The avatar may not be available.');
-      }, 10000); // 10 second timeout
+        setAvatarError('Avatar video not available. This may be due to missing Azure configuration or WebRTC connection issues.');
+      }, 5000); // 5 second timeout for development
 
       return () => {
         if (timeoutRef.current) {
@@ -106,6 +107,36 @@ export function AvatarDisplay({
     }
   }, [isAvatarReady]);
 
+  // Check if Azure is properly configured
+  const isAzureConfigured = () => {
+    // Check if we have the required environment variables
+    const resourceName = import.meta.env.VITE_AZURE_AI_RESOURCE_NAME;
+    const region = import.meta.env.VITE_AZURE_AI_REGION;
+    return resourceName && region && 
+           !resourceName.includes('<') && 
+           !region.includes('<');
+  };
+
+  // Set avatar ready when connected and we have a video element (even without data yet)
+  useEffect(() => {
+    if (isConnected && videoRef?.current && !isAvatarReady && !loadingTimeout) {
+      if (!isAzureConfigured()) {
+        // If Azure is not configured, show error immediately
+        setAvatarError('Azure Voice Live API not configured. Please set up environment variables.');
+        setLoadingTimeout(true);
+        return;
+      }
+
+      // Give it a short delay to allow WebRTC connection to establish
+      const readyTimer = setTimeout(() => {
+        console.log('✅ Avatar video element ready, setting ready state');
+        setIsAvatarReady(true);
+      }, 3000); // 3 seconds to allow connection setup
+
+      return () => clearTimeout(readyTimer);
+    }
+  }, [isConnected, videoRef, isAvatarReady, loadingTimeout]);
+
   // If no avatar is configured, return null
   if (!avatar || !avatar.enabled) {
     return null;
@@ -119,19 +150,19 @@ export function AvatarDisplay({
       {/* Static avatar image when not connected */}
       {!isConnected && (
         <div className="avatar-image-container">
-          {!imageLoaded && (
-            <div className="avatar-loading">
-              <div className="spinner"></div>
-              <p>Loading avatar...</p>
-            </div>
-          )}
           <img
             src={avatarImageSrc}
             alt={avatarDisplayName}
             className="avatar-image"
-            onLoad={() => setImageLoaded(true)}
-            onError={() => setImageLoaded(true)} // Handle errors gracefully
-            style={{ display: imageLoaded ? 'block' : 'none' }}
+            onLoad={() => {
+              console.log('✅ Static avatar image loaded');
+              setImageLoaded(true);
+            }}
+            onError={(e) => {
+              console.error('❌ Static avatar image error:', e);
+              setImageLoaded(true); // Handle errors gracefully
+            }}
+            style={{ display: 'block' }} // Always show the image
           />
         </div>
       )}
@@ -144,9 +175,12 @@ export function AvatarDisplay({
               {loadingTimeout || avatarError ? (
                 <>
                   <div className="error-icon">⚠️</div>
-                  <p>{avatarError || 'Avatar loading timeout'}</p>
-                  <p style={{fontSize: '12px', opacity: 0.7}}>
-                    Try refreshing or check console for details
+                  <p style={{fontSize: '14px', marginBottom: '8px'}}>
+                    {avatarError || 'Avatar video not available'}
+                  </p>
+                  <p style={{fontSize: '12px', opacity: 0.7, textAlign: 'center', lineHeight: '1.4'}}>
+                    To enable avatar video, configure Azure Voice Live API credentials.<br/>
+                    Check the README for setup instructions.
                   </p>
                 </>
               ) : (
@@ -159,7 +193,13 @@ export function AvatarDisplay({
           )}
 
           <video
-            ref={handleVideoRef}
+            ref={(el) => {
+              // Set the ref from props if provided
+              if (videoRef) {
+                (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
+              }
+              handleVideoRef(el);
+            }}
             className={`avatar-video ${isAvatarReady ? 'visible' : 'hidden'}`}
             autoPlay
             playsInline

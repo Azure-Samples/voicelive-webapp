@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useVoiceLiveClient } from '../utils/useVoiceLiveClient';
 import { useAudioManager } from '../utils/useAudioManager';
-import { AvatarDisplay } from './AvatarDisplay';
 import { AudioPulse } from './AudioPulse';
-import { config } from '../config';
 import { AudioDebugger } from '../utils/audioDebugger';
 import './VoiceLiveAgent.css';
 
@@ -21,9 +19,6 @@ export function VoiceLiveAgent(): JSX.Element {
   const [isUserSpeaking, setIsUserSpeaking] = useState<boolean>(false);
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [showCaptions, setShowCaptions] = useState<boolean>(false);
-  const [avatarData, setAvatarData] = useState<Uint8Array | null>(null);
-  const [isAvatarReady, setIsAvatarReady] = useState<boolean>(false);
-
   const audioLevelIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageIdRef = useRef<number>(0);
@@ -33,13 +28,11 @@ export function VoiceLiveAgent(): JSX.Element {
     connect,
     disconnect,
     sendAudio,
-    sendText,
     triggerResponse,
     onMessage,
     onAudio,
     onTranscript,
     connectionState,
-    sessionId,
     error,
     isConnected,
   } = useVoiceLiveClient();
@@ -120,16 +113,6 @@ export function VoiceLiveAgent(): JSX.Element {
           }
           return prev;
         });
-      } else if (message.type === 'session.avatar.ready') {
-        console.log('Avatar ready:', message);
-        setIsAvatarReady(true);
-        if (message.avatar) {
-          setAvatarData(message.avatar);
-        }
-      } else if (message.type === 'response.video.delta') {
-        // Handle avatar video data
-        console.log('Avatar video delta received');
-        // This would typically be processed by the AvatarDisplay component
       }
     });
   }, [onAudio, onTranscript, onMessage, playAudioChunk, stopPlayback]);
@@ -153,7 +136,7 @@ export function VoiceLiveAgent(): JSX.Element {
     if (connectionState === 'connected' && !isRecording()) {
       const startAudioRecording = async () => {
         try {
-          await startRecording((audioChunk: Float32Array) => {
+          await startRecording((audioChunk: Uint8Array) => {
             sendAudio(audioChunk);
           });
 
@@ -222,46 +205,15 @@ export function VoiceLiveAgent(): JSX.Element {
   const isEmpty = messages.length === 0;
   const showIdleState = isEmpty && connectionState !== 'connected';
   
-  // Debug avatar configuration
-  useEffect(() => {
-    console.log('Avatar config:', config.session.avatar);
-    console.log('Avatar data:', avatarData);
-    console.log('Connection state:', connectionState);
-  }, [avatarData, connectionState]);
+
 
   return (
     <div className="chatbot">
       {/* Main Content Area - Takes remaining space */}
       <div className="main-content-area">
-        {config.session.avatar?.enabled ? (
-          <AvatarDisplay
-            avatar={{
-              enabled: true,
-              avatarName: config.session.avatar.character || 'Lisa',
-              avatarBigImg: 'data:image/svg+xml;base64,' + btoa(`
-                <svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="100" cy="100" r="90" fill="#6B73FF"/>
-                  <circle cx="100" cy="80" r="30" fill="white"/>
-                  <circle cx="85" cy="75" r="5" fill="#6B73FF"/>
-                  <circle cx="115" cy="75" r="5" fill="#6B73FF"/>
-                  <path d="M80 110 Q100 130 120 110" stroke="white" stroke-width="3" fill="none"/>
-                  <text x="100" y="180" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="white">Avatar</text>
-                </svg>
-              `),
-              ...avatarData, // Merge with any received avatar data
-            }}
-            isConnected={connectionState === 'connected'}
-            isAgentSpeaking={isAgentSpeaking}
-            onVideoReady={(video: HTMLVideoElement) => {
-              console.log('Avatar video ready:', video);
-            }}
-            onAudioReady={(audio: HTMLAudioElement) => {
-              console.log('Avatar audio ready:', audio);
-            }}
-          />
-        ) : showIdleState ? (
+        {showIdleState ? (
           <div className="empty-chat-container">
-            <div className="avatar-container">
+            <div className="agent-container">
               <div className="circle-base-idle">
                 <svg
                   width="64"
@@ -272,9 +224,9 @@ export function VoiceLiveAgent(): JSX.Element {
                 >
                 </svg>
               </div>
-              <div className="avatar-status">
-                <div className="avatar-title">Just say the word</div>
-                <div className="avatar-subtitle">Try speaking out loud, just like you'd converse with a real person, and hear the responses you'll get back.</div>
+              <div className="agent-status">
+                <div className="agent-title">Just say the word</div>
+                <div className="agent-subtitle">Try speaking out loud, just like you'd converse with a real person, and hear the responses you'll get back.</div>
               </div>
             </div>
           </div>

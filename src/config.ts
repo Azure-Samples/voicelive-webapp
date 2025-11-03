@@ -1,6 +1,5 @@
 import authService from './utils/authService';
 import type { Config } from './types';
-import { getAvatarConfig, getDefaultAvatar, COMMON_AVATARS, getAvailableAvatarNames } from './utils/AvatarPersonnelList';
 
 export const config: Config = {
   resource: {
@@ -37,7 +36,7 @@ export const config: Config = {
   // Model Configuration
   model: {
     // Model to use: 'gpt-realtime' or 'gpt-4o-realtime'
-    name: 'gpt-realtime',
+    name: 'gpt-4o-realtime',
 
     // Alternative: Use your AI Foundry Agent
     useAgent: false,
@@ -107,66 +106,14 @@ export const config: Config = {
       chunk_length_ms: 50, // 50ms chunks instead of default larger chunks
     },
 
-    // Avatar configuration (optional)
-    // To change avatar, update avatarName to one of:
-    // COMMON_AVATARS.HARRY_BUSINESS, HARRY_CASUAL, HARRY_YOUTHFUL
-    // COMMON_AVATARS.MEG_BUSINESS, MEG_FORMAL, MEG_CASUAL  
-    // COMMON_AVATARS.MAX_BUSINESS, MAX_CASUAL, MAX_FORMAL
-    avatar: (() => {
-      // Use Harry-business as a working avatar (available in AvatarPersonnelList)
-      const avatarName = COMMON_AVATARS.HARRY_BUSINESS;
-      const avatarConfig = getAvatarConfig(avatarName);
-      
-      if (!avatarConfig) {
-        console.warn(`Avatar ${avatarName} not found, using default`);
-        const defaultAvatar = getDefaultAvatar();
-        const defaultConfig = getAvatarConfig(defaultAvatar.name) || { character: 'harry', style: 'business' };
-        return {
-          enabled: false,
-          avatarName: defaultAvatar.name,
-          character: defaultConfig.character,
-          style: defaultConfig.style,
-          customized: false,
-          video: {
-            bitrate: 2000000,
-            codec: 'h264',
-            resolution: {
-              width: 1080,
-              height: 1920,
-            },
-            background: {
-              color: '#00FF00FF', // Green screen
-            },
-          },
-        };
-      }
-      
-      return {
-        enabled: false,
-        avatarName: avatarName,
-        character: avatarConfig.character,
-        style: avatarConfig.style,
-        customized: false,
-        video: {
-          bitrate: 2000000,
-          codec: 'h264',
-          resolution: {
-            width: 1080,
-            height: 1920,
-          },
-          background: {
-            color: '#00FF00FF', // Green screen
-          },
-        },
-      };
-    })(),
+
   },
 
   // Feature flags
   features: {
     enableTranscription: true, // Show real-time transcription
     enableAudioVisualization: true, // Show audio level visualization
-    enableProactiveEngagement: true, // Agent speaks first when avatar loads
+    enableProactiveEngagement: true, // Agent speaks first when connected
   },
 };
 
@@ -203,39 +150,7 @@ export async function getAuthHeaders() {
   );
 }
 
-// Helper function to list available avatars (for debugging)
-export function listAvailableAvatars() {
-  console.log('Available avatars:', getAvailableAvatarNames());
-  return getAvailableAvatarNames();
-}
-
-// Initialize and log avatar configuration for debugging
-console.log('🎭 Avatar System Initialized');
-console.log(`Selected avatar: ${config.session.avatar?.avatarName}`);
-console.log(`Character: ${config.session.avatar?.character}, Style: ${config.session.avatar?.style}`);
-
-// Log available avatars in development
-if (import.meta.env.DEV) {
-  listAvailableAvatars();
-}
-
-// Export avatar utilities for easy access in browser console
-// Usage: configInstance.switchAvatar('Harry-casual')
+// Export config instance
 export const configInstance = {
   ...config,
-  switchAvatar: (avatarName: string) => {
-    const avatarConfig = getAvatarConfig(avatarName);
-    if (avatarConfig && config.session.avatar) {
-      config.session.avatar.avatarName = avatarName;
-      config.session.avatar.character = avatarConfig.character;
-      config.session.avatar.style = avatarConfig.style;
-      console.log(`🎭 Switched to avatar: ${avatarName} (${avatarConfig.character}-${avatarConfig.style})`);
-      return true;
-    } else {
-      console.error(`❌ Avatar ${avatarName} not found`);
-      return false;
-    }
-  },
-  listAvatars: listAvailableAvatars,
-  getAvailableAvatars: () => getAvailableAvatarNames()
 };

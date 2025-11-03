@@ -28,6 +28,8 @@ export function useVoiceLiveClient() {
   const buildSessionUpdate = useCallback(() => {
     const { session } = config;
 
+
+
     return {
       type: 'session.update',
       session: {
@@ -70,14 +72,7 @@ export function useVoiceLiveClient() {
         ...(session.outputAudio.timestampTypes && {
           output_audio_timestamp_types: session.outputAudio.timestampTypes,
         }),
-        ...(session.avatar?.enabled && {
-          avatar: {
-            character: session.avatar.character,
-            style: session.avatar.style,
-            customized: session.avatar.customized,
-            video: session.avatar.video,
-          },
-        }),
+
       },
     };
   }, []);
@@ -150,21 +145,7 @@ export function useVoiceLiveClient() {
           }
           break;
 
-        case 'response.video.delta':
-          // Avatar video chunk
-          console.log('📹 Avatar video delta received');
-          if (onMessageHandlerRef.current) {
-            onMessageHandlerRef.current(message);
-          }
-          break;
 
-        case 'session.avatar.ready':
-          // Avatar is ready
-          console.log('✅ Avatar ready');
-          if (onMessageHandlerRef.current) {
-            onMessageHandlerRef.current(message);
-          }
-          break;
 
         default:
           // Forward other messages to handler
@@ -274,6 +255,8 @@ export function useVoiceLiveClient() {
     [connectionState],
   );
 
+
+
   /**
    * Send text message to agent
    */
@@ -341,6 +324,8 @@ export function useVoiceLiveClient() {
     onTranscriptHandlerRef.current = handler;
   }, []);
 
+  const isConnected = connectionState === 'connected';
+
   return {
     connect,
     disconnect,
@@ -353,6 +338,6 @@ export function useVoiceLiveClient() {
     connectionState,
     sessionId,
     error,
-    isConnected: connectionState === 'connected',
+    isConnected,
   };
 }
