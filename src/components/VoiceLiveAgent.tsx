@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useVoiceLiveClient } from '../utils/useVoiceLiveClient';
 import { useAudioManager } from '../utils/useAudioManager';
 import { AvatarDisplay } from './AvatarDisplay';
+import { AudioPulse } from './AudioPulse';
 import { config } from '../config';
 import { AudioDebugger } from '../utils/audioDebugger';
 import './VoiceLiveAgent.css';
@@ -279,39 +280,20 @@ export function VoiceLiveAgent(): JSX.Element {
           </div>
         ) : (
           <>
-            {/* Voice Pulse Indicator */}
+            {/* Audio Pulse Indicator */}
             {connectionState === 'connected' && (
-              <div className="voice-recorder-panel">
-                <div className="circle-wrapper">
-                  <div className="circle-stack">
-                    <div
-                      className="circle-outer"
-                      style={{
-                        transform: `scale(${1 + audioLevel * 0.15})`,
-                      }}
-                    />
-                    <div
-                      className="circle-mid"
-                      style={{
-                        transform: `scale(${1 + audioLevel * 0.1})`,
-                      }}
-                    />
-                    <div
-                      className="circle-inner"
-                      style={{
-                        transform: `scale(${1 + audioLevel * 0.05})`,
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="recorder-status">
-                  {isUserSpeaking
+              <AudioPulse
+                audioLevel={audioLevel}
+                isUserSpeaking={isUserSpeaking}
+                isAgentSpeaking={isAgentSpeaking}
+                status={
+                  isUserSpeaking
                     ? 'Listening...'
                     : isAgentSpeaking
                       ? 'Agent speaking...'
-                      : 'Ready'}
-                </div>
-              </div>
+                      : 'Ready'
+                }
+              />
             )}
           </>
         )}
