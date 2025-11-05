@@ -53,7 +53,6 @@ VOICE_AGENT_ENDPOINT = "voice-agent/realtime"
 
 # Configuration from environment
 AZURE_AI_RESOURCE_NAME = os.getenv("AZURE_AI_RESOURCE_NAME")
-AZURE_AI_API_KEY = os.getenv("AZURE_AI_API_KEY")
 MODEL_DEPLOYMENT_NAME = os.getenv("MODEL_DEPLOYMENT_NAME", "gpt-4o")
 AVATAR_CHARACTER = os.getenv("AVATAR_CHARACTER", "lisa")
 AVATAR_STYLE = os.getenv("AVATAR_STYLE", "casual-sitting")
@@ -207,9 +206,6 @@ class AzureVoiceProxyHandler:
 
     async def _connect_to_azure(self) -> Optional[websockets.WebSocketClientProtocol]:
         """Connect to Azure Voice Live API."""
-        if not AZURE_AI_RESOURCE_NAME or not AZURE_AI_API_KEY:
-            logger.error("❌ Missing Azure configuration. Check AZURE_AI_RESOURCE_NAME and AZURE_AI_API_KEY")
-            return None
 
         try:
             # Build Azure WebSocket URL
