@@ -240,6 +240,9 @@ class AzureVoiceProxyHandler:
     async def _send_initial_avatar_config(self, azure_ws: websockets.WebSocketClientProtocol) -> None:
         """Send initial session configuration with avatar enabled."""
         global flat_metadata
+        avatar_name = flat_metadata.get('avatar.selectedAvatar.avatarName')
+        character_name = avatar_name.split("-")[0].lower()
+        character_style = avatar_name.split("-")[1]
         session_config = {
             "type": "session.update",
             "session": {
@@ -248,8 +251,8 @@ class AzureVoiceProxyHandler:
                 "input_audio_noise_reduction": {"type": "azure_deep_noise_suppression" if flat_metadata.get('speech.noiseSuppression') else "near_field"},
                 "input_audio_echo_cancellation": {"type": "server_echo_cancellation"},
                 "avatar": {
-                    "character": AVATAR_CHARACTER,
-                    "style": AVATAR_STYLE,
+                    "character": character_name,
+                    "style": character_style,
                 },
                 "voice": {
                     "name": flat_metadata.get('speech.voice.shortName'),
