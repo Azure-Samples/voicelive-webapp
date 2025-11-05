@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Avatar Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .test-section {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+
+        .avatar-container {
+            text-align: center;
+            padding: 20px;
+            border: 2px dashed #ddd;
+            min-height: 200px;
+        }
+
+        video {
+            max-width: 400px;
+            max-height: 300px;
+            border: 1px solid #333;
+        }
+
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .status.success {
+            background-color: #d4edda;
+        }
+
+        .status.error {
+            background-color: #f8d7da;
+        }
+
+        .status.info {
+            background-color: #d1ecf1;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .logs {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>WebRTC Avatar Test - Foundry Pattern</h1>
+    <p>This test verifies that our WebRTC implementation follows the same pattern as Azure AI Foundry.</p>
+
+    <div class="test-section">
+        <h2>Test Status</h2>
+        <div id="status" class="status info">Ready to test</div>
+
+        <h2>Controls</h2>
+        <button id="startTest">Start WebRTC Test</button>
+        <button id="createElements" disabled>Create Video Elements</button>
+        <button id="simulateStream" disabled>Simulate Media Stream</button>
+        <button id="clearTest">Clear Test</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Avatar Container</h2>
+        <div id="avatarContainer" class="avatar-container">
+            <p>Video elements will appear here when created</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Logs</h2>
+        <div id="logs" class="logs"></div>
+    </div>
+
+    <script>
+        // Test implementation following the foundry pattern
+        class TestWebRTCAvatarManager {
+            constructor() {
+                this.mediaElements = { video: null, audio: null };
+                this.receivedTracks = new Set();
+                this.log('WebRTCAvatarManager initialized');
+            }
+
+            // Foundry pattern: setMediaElements with object parameter
+            setMediaElements(elements) {
+                this.mediaElements = elements;
+                this.log(`Media elements set: video=${!!elements.video}, audio=${!!elements.audio}`);
+
+                // If we have waiting streams, attach them
+                if (this.pendingVideoStream && elements.video) {
+                    this.log('Attaching pending video stream');
+                    elements.video.srcObject = this.pendingVideoStream;
+                }
+                if (this.pendingAudioStream && elements.audio) {
+                    this.log('Attaching pending audio stream');
+                    elements.audio.srcObject = this.pendingAudioStream;
+                }
+            }
+
+            // Simulate receiving media tracks
+            simulateMediaTrack(type, stream) {
+                this.log(`Simulating ${type} track received`);
+
+                const element = this.mediaElements[type];
+                if (element) {
+                    element.srcObject = stream;
+                    this.log(`✅ ${type} stream assigned to element`);
+                } else {
+                    this.log(`⚠️ No ${type} element available, storing stream`);
+                    if (type === 'video') {
+                        this.pendingVideoStream = stream;
+                    } else {
+                        this.pendingAudioStream = stream;
+                    }
+                }
+
+                this.receivedTracks.add(type);
+                if (this.receivedTracks.has('video') && this.receivedTracks.has('audio')) {
+                    this.log('🎭 Avatar ready - both tracks received');
+                    this.updateStatus('Avatar is ready!', 'success');
+                }
+            }
+
+            log(message) {
+                console.log(message);
+                const logs = document.getElementById('logs');
+                const timestamp = new Date().toLocaleTimeString();
+                logs.innerHTML += `[${timestamp}] ${message}<br>`;
+                logs.scrollTop = logs.scrollHeight;
+            }
+
+            updateStatus(message, type = 'info') {
+                const status = document.getElementById('status');
+                status.textContent = message;
+                status.className = `status ${type}`;
+            }
+        }
+
+        // Test implementation
+        let manager = null;
+        let isAvatarReady = false;
+
+        // Foundry pattern: ref callback for video element
+        const handleVideoRef = (el) => {
+            if (!el) return;
+
+            manager.log('🎭 Video ref callback called');
+            if (manager) {
+                manager.setMediaElements({
+                    video: el,
+                    audio: document.getElementById('avatarAudio')
+                });
+            }
+        };
+
+        // Foundry pattern: ref callback for audio element  
+        const handleAudioRef = (el) => {
+            if (!el) return;
+
+            manager.log('🎭 Audio ref callback called');
+            if (manager) {
+                manager.setMediaElements({
+                    video: document.getElementById('avatarVideo'),
+                    audio: el
+                });
+            }
+        };
+
+        // Create test media stream
+        async function createTestStream(type) {
+            try {
+                if (type === 'video') {
+                    // Create canvas-based video stream
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 320;
+                    canvas.height = 240;
+                    const ctx = canvas.getContext('2d');
+
+                    // Animate canvas
+                    let frame = 0;
+                    const animate = () => {
+                        ctx.fillStyle = `hsl(${frame % 360}, 50%, 50%)`;
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillStyle = 'white';
+                        ctx.font = '20px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('Test Avatar Video', canvas.width / 2, canvas.height / 2);
+                        frame++;
+                        requestAnimationFrame(animate);
+                    };
+                    animate();
+
+                    return canvas.captureStream(30);
+                } else {
+                    // Create audio context for test audio
+                    const audioContext = new AudioContext();
+                    const oscillator = audioContext.createOscillator();
+                    const destination = audioContext.createMediaStreamDestination();
+
+                    oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+                    oscillator.type = 'sine';
+                    oscillator.connect(destination);
+                    oscillator.start();
+
+                    return destination.stream;
+                }
+            } catch (error) {
+                manager.log(`Error creating ${type} stream: ${error}`);
+                return null;
+            }
+        }
+
+        // Event handlers
+        document.getElementById('startTest').addEventListener('click', () => {
+            manager = new TestWebRTCAvatarManager();
+            manager.updateStatus('WebRTC Manager initialized', 'info');
+            document.getElementById('createElements').disabled = false;
+        });
+
+        document.getElementById('createElements').addEventListener('click', () => {
+            const container = document.getElementById('avatarContainer');
+
+            // Only render elements when "avatar is ready" (foundry pattern)
+            if (!isAvatarReady) {
+                isAvatarReady = true;
+                manager.log('🎭 Avatar ready state set to true, rendering elements');
+
+                container.innerHTML = `
+                    <div style="display: flex; gap: 20px; justify-content: center; align-items: center;">
+                        <div>
+                            <h4>Video Element</h4>
+                            <video id="avatarVideo" autoplay muted style="width: 320px; height: 240px;"></video>
+                        </div>
+                        <div>
+                            <h4>Audio Element</h4>
+                            <audio id="avatarAudio" autoplay controls></audio>
+                        </div>
+                    </div>
+                `;
+
+                // Set up ref callbacks (foundry pattern)
+                const videoEl = document.getElementById('avatarVideo');
+                const audioEl = document.getElementById('avatarAudio');
+
+                handleVideoRef(videoEl);
+                handleAudioRef(audioEl);
+
+                document.getElementById('simulateStream').disabled = false;
+            }
+        });
+
+        document.getElementById('simulateStream').addEventListener('click', async () => {
+            manager.log('Creating test streams...');
+
+            const videoStream = await createTestStream('video');
+            const audioStream = await createTestStream('audio');
+
+            if (videoStream && audioStream) {
+                // Simulate WebRTC track reception (foundry pattern)
+                setTimeout(() => manager.simulateMediaTrack('video', videoStream), 500);
+                setTimeout(() => manager.simulateMediaTrack('audio', audioStream), 1000);
+            }
+        });
+
+        document.getElementById('clearTest').addEventListener('click', () => {
+            document.getElementById('avatarContainer').innerHTML = '<p>Video elements will appear here when created</p>';
+            document.getElementById('logs').innerHTML = '';
+            document.getElementById('status').textContent = 'Ready to test';
+            document.getElementById('status').className = 'status info';
+            document.getElementById('createElements').disabled = true;
+            document.getElementById('simulateStream').disabled = true;
+            isAvatarReady = false;
+            manager = null;
+        });
+    </script>
+</body>
+
+</html>

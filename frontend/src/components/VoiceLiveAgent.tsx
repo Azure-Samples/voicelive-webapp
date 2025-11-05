@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useVoiceLiveClient } from '../utils/useVoiceLiveClient';
 import { useAudioManager } from '../utils/useAudioManager';
-import { AudioPulse } from './AudioPulse';
+import { AvatarDisplay } from './AvatarDisplay';
+import { config } from '../config';
 import { AudioDebugger } from '../utils/audioDebugger';
 import './VoiceLiveAgent.css';
 
@@ -19,6 +20,9 @@ export function VoiceLiveAgent(): JSX.Element {
   const [isUserSpeaking, setIsUserSpeaking] = useState<boolean>(false);
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [showCaptions, setShowCaptions] = useState<boolean>(false);
+  const [avatarData, setAvatarData] = useState<Uint8Array | null>(null);
+  // Note: isAvatarReady now comes from useVoiceLiveClient hook
+
   const audioLevelIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageIdRef = useRef<number>(0);
@@ -35,6 +39,8 @@ export function VoiceLiveAgent(): JSX.Element {
     connectionState,
     error,
     isConnected,
+    isAvatarReady,
+    setAvatarMediaElements,
   } = useVoiceLiveClient();
 
   // Audio Manager
@@ -46,6 +52,8 @@ export function VoiceLiveAgent(): JSX.Element {
     getAudioLevel,
     isRecording,
   } = useAudioManager();
+
+
 
   /**
    * Setup event handlers when client is ready
@@ -62,12 +70,12 @@ export function VoiceLiveAgent(): JSX.Element {
     onTranscript((text: string, role: 'user' | 'agent') => {
       const timestamp = Date.now();
       if (role === 'user') {
-        setMessages(prev => [
+        setMessages((prev: any) => [
           ...prev,
           { id: `msg_${++messageIdRef.current}`, role: 'user', message: text, timestamp },
         ]);
       } else if (role === 'agent') {
-        setMessages(prev => {
+        setMessages((prev: any) => {
           const lastMessage = prev[prev.length - 1];
           if (
             lastMessage &&
@@ -96,8 +104,10 @@ export function VoiceLiveAgent(): JSX.Element {
       }
     });
 
-    // Handle other messages
+    // Enhanced message handling for avatar support (inspired by foundry)
     onMessage((message: any) => {
+      console.log('📩 Processing message:', message.type);
+      
       if (message.type === 'user_started_speaking') {
         setIsUserSpeaking(true);
         stopPlayback();
@@ -106,13 +116,22 @@ export function VoiceLiveAgent(): JSX.Element {
         setIsUserSpeaking(false);
       } else if (message.type === 'response.done') {
         setIsAgentSpeaking(false);
-        setMessages(prev => {
+        setMessages((prev: any) => {
           const lastMessage = prev[prev.length - 1];
           if (lastMessage && lastMessage.role === 'agent') {
             return [...prev.slice(0, -1), { ...lastMessage, completed: true }];
           }
           return prev;
         });
+      } else if (message.type === 'session.avatar.ready') {
+        console.log('✅ Avatar ready:', message);
+        // Note: isAvatarReady is now managed by useVoiceLiveClient hook
+        if (message.avatar) {
+          setAvatarData(message.avatar);
+        }
+      } else if (message.type === 'response.video.delta') {
+        console.log('📹 Avatar video delta received:', message);
+        // Video processing is now handled by WebRTC layer
       }
     });
   }, [onAudio, onTranscript, onMessage, playAudioChunk, stopPlayback]);
@@ -205,49 +224,94 @@ export function VoiceLiveAgent(): JSX.Element {
   const isEmpty = messages.length === 0;
   const showIdleState = isEmpty && connectionState !== 'connected';
   
+  // Check if avatar is enabled (inspired by foundry VoiceLiveAgent)
+  const isAvatarConfigEnabled = Boolean(config.session.avatar?.enabled);
+  
+  // Debug avatar configuration
+  useEffect(() => {
+    console.log('🎭 Avatar config enabled:', isAvatarConfigEnabled);
+    console.log('Avatar config:', config.session.avatar);
+    console.log('Avatar data:', avatarData);
+    console.log('Connection state:', connectionState);
+  }, [avatarData, connectionState, isAvatarConfigEnabled]);
 
+  // Foundry-inspired render for non-avatar mode
+  const renderNonAvatarMode = () => (
+    <div className="voice-recorder-container">
+      {showIdleState ? (
+        <div className="empty-chat-container">
+          <div className="avatar-container">
+            <div className="circle-base-idle">
+              <svg
+                width="64"
+                height="64"
+                viewBox="0 0 64 64"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                {/* Add mic icon or similar */}
+              </svg>
+            </div>
+            <div className="avatar-status">
+              <div className="avatar-title">Just say the word</div>
+              <div className="avatar-subtitle">Try speaking out loud, just like you'd converse with a real person, and hear the responses you'll get back.</div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Voice Pulse Indicator */
+        connectionState === 'connected' && (
+          <div className="voice-recorder-panel">
+            <div className="circle-wrapper">
+              <div className="circle-stack">
+                <div
+                  className="circle-outer"
+                  style={{
+                    transform: `scale(${1 + audioLevel * 0.15})`,
+                  }}
+                />
+                <div
+                  className="circle-mid"
+                  style={{
+                    transform: `scale(${1 + audioLevel * 0.1})`,
+                  }}
+                />
+                <div
+                  className="circle-inner"
+                  style={{
+                    transform: `scale(${1 + audioLevel * 0.05})`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )
+      )}
+    </div>
+  );
 
   return (
     <div className="chatbot">
       {/* Main Content Area - Takes remaining space */}
       <div className="main-content-area">
-        {showIdleState ? (
-          <div className="empty-chat-container">
-            <div className="agent-container">
-              <div className="circle-base-idle">
-                <svg
-                  width="64"
-                  height="64"
-                  viewBox="0 0 64 64"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                </svg>
-              </div>
-              <div className="agent-status">
-                <div className="agent-title">Just say the word</div>
-                <div className="agent-subtitle">Try speaking out loud, just like you'd converse with a real person, and hear the responses you'll get back.</div>
-              </div>
-            </div>
-          </div>
+        {/* Foundry-inspired conditional rendering based on avatar config */}
+        {isAvatarConfigEnabled ? (
+          <AvatarDisplay
+            avatar={{
+              enabled: true,
+              avatarName: config.session.avatar?.avatarName || config.session.avatar?.character || 'Avatar',
+              avatarBigImg: config.session.avatar?.avatarBigImg,
+              avatarImageUrl: config.session.avatar?.avatarImageUrl,
+              ...avatarData, // Merge with any received avatar data
+            }}
+            isConnected={connectionState === 'connected'}
+            isAgentSpeaking={isAgentSpeaking}
+            isAvatarReady={isAvatarReady}
+            setAvatarMediaElements={setAvatarMediaElements}
+          />
         ) : (
-          <>
-            {/* Audio Pulse Indicator */}
-            {connectionState === 'connected' && (
-              <AudioPulse
-                audioLevel={audioLevel}
-                isUserSpeaking={isUserSpeaking}
-                isAgentSpeaking={isAgentSpeaking}
-                status={
-                  isUserSpeaking
-                    ? 'Listening...'
-                    : isAgentSpeaking
-                      ? 'Agent speaking...'
-                      : 'Ready'
-                }
-              />
-            )}
-          </>
+          /* Fallback to non-avatar mode when avatar is disabled (foundry pattern) */
+          renderNonAvatarMode()
         )}
       </div>
 

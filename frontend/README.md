@@ -1,6 +1,39 @@
 # Azure AI Voice Live Agent Sample
 
-A **complete, working** standalone sample application demonstrating real-time voice conversation with AI using Azure AI Foundry's Voice Live API. This app showcases WebSocket-based streaming, real-time audio processing, and natural voice interactions powered by Azure Speech Service.
+# Azure AI Voice Live Agent Sample with Avatar Support
+
+A **complete, working** standalone sample application demonstrating real-time voice conversation with AI avatars using Azure AI Foundry's Voice Live API. This app showcases WebSocket-based streaming, WebRTC avatar video, and natural voice interactions with AI characters.
+
+## ✨ Features
+
+- **🎭 AI Avatar Video**: Real-time video avatars with WebRTC streaming  
+- **🗣️ Real-time Voice Conversation**: Bidirectional audio streaming with Azure Speech Service
+- **🔗 WebSocket + WebRTC**: Hybrid architecture for control and media streaming
+- **🎵 Complete Audio Pipeline**: Web Audio API integration
+  - Microphone capture using AudioWorklet
+  - Real-time audio playbook
+  - PCM16 encoding/decoding
+- **🤖 Turn Detection**: Semantic Voice Activity Detection (VAD)
+- **🔊 Audio Enhancements**:
+  - Noise suppression
+  - Echo cancellation
+  - Automatic gain control
+- **📝 Live Transcription**: Real-time speech-to-text display with captions toggle
+- **📊 Visual Feedback**: Animated pulse visualization with audio level monitoring
+- **🎨 Preview Layout**: Clean UI matching Azure AI Foundry agent preview design
+- **🔧 Backend Proxy**: FastAPI backend for Azure integration and WebRTC setup
+
+## 🏗️ Architecture
+
+```
+Frontend (React) → FastAPI Backend → Azure Voice Live API
+     ↓                                       ↓
+WebRTC Video ← ← ← ← ICE Servers ← ← ← Avatar Service
+```
+
+**Two-layer communication:**
+- **WebSocket**: Control messages, audio, text (Frontend ↔ Backend ↔ Azure)
+- **WebRTC**: Direct video streaming (Frontend ↔ Azure Avatar Service)
 
 ## Features
 
@@ -28,25 +61,61 @@ A **complete, working** standalone sample application demonstrating real-time vo
 
 ### Prerequisites
 
-- **Node.js 18+** (with npm or pnpm)
-- **Azure AI Foundry Resource** or **Azure Speech Services Resource**
+- **Node.js 18+** (with npm or pnpm)  
+- **Python 3.8+** (for FastAPI backend)
+- **Azure AI Services Resource** (with avatar support)
 - **Microphone** for voice input
-- **HTTPS/localhost** (required for microphone access)
+- **HTTPS/localhost** (required for microphone/camera access)
 
 ### Installation
 
+#### 1. Frontend Setup
 ```bash
-cd voice-live
 npm install
-# or
-pnpm install
 ```
 
-### Configuration
+#### 2. Backend Setup  
+```bash
+cd backend
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env with your Azure credentials
+```
 
-#### Option 1: API Key Authentication (Quick Start)
+#### 3. Configuration
 
-Edit `src/config.js` with your Azure credentials:
+Edit `backend/.env` with your Azure credentials:
+
+```bash
+AZURE_AI_RESOURCE_NAME=your-resource-name
+AZURE_AI_API_KEY=your-api-key-here
+AZURE_AI_REGION=swedencentral
+MODEL_DEPLOYMENT_NAME=gpt-4o
+```
+
+#### 4. Run Both Servers
+
+**Windows:**
+```bash
+start.bat
+```
+
+**Linux/Mac:**  
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+**Manual:**
+```bash
+# Terminal 1: Backend
+cd backend && python main.py
+
+# Terminal 2: Frontend  
+npm run dev
+```
+
+### Azure Resource Requirements
 
 ```javascript
 export const config = {
