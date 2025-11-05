@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useVoiceLiveClient } from '../utils/useVoiceLiveClient';
 import { useAudioManager } from '../utils/useAudioManager';
 import { AvatarDisplay } from './AvatarDisplay';
 import { config } from '../config';
 import { AudioDebugger } from '../utils/audioDebugger';
+import { SPEECH_AVATARS_FULL } from '../utils/avatarPersonnelList';
 import './VoiceLiveAgent.css';
 
 interface Message {
@@ -14,6 +15,23 @@ interface Message {
   timestamp: number;
 }
 
+interface BackendConfig {
+  ws_endpoint: string;
+  config: {
+    'speech.language': string;
+    'speech.voice.shortName': string;
+    'speech.voice.voiceType': string;
+    'speech.voiceTemperature': number;
+    'speech.speakingRate': number;
+    'speech.voiceActivityDetection': string;
+    'speech.endOfUtterance': boolean;
+    'speech.inputModel': string;
+    'avatar.avatar': boolean;
+    'avatar.selectedAvatar.avatarName': string;
+    'avatar.selectedAvatar.isCustomAvatar': boolean;
+  };
+}
+
 export function VoiceLiveAgent(): JSX.Element {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isAgentSpeaking, setIsAgentSpeaking] = useState<boolean>(false);
@@ -21,6 +39,8 @@ export function VoiceLiveAgent(): JSX.Element {
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [showCaptions, setShowCaptions] = useState<boolean>(false);
   const [avatarData, setAvatarData] = useState<Uint8Array | null>(null);
+  const [backendConfig, setBackendConfig] = useState<BackendConfig | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   // Note: isAvatarReady now comes from useVoiceLiveClient hook
 
   const audioLevelIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -52,6 +72,44 @@ export function VoiceLiveAgent(): JSX.Element {
     getAudioLevel,
     isRecording,
   } = useAudioManager();
+
+  // Fetch backend config on mount
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('http://localhost:8080/config');
+        const data = await response.json();
+        console.log('🔧 Backend config:', data);
+        setBackendConfig(data);
+      } catch (error) {
+        console.error('❌ Error fetching backend config:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  // Find avatar details from the personnel list
+  const avatarDetails = useMemo(() => {
+    if (!backendConfig) return null;
+
+    const avatarName = backendConfig.config['avatar.selectedAvatar.avatarName'];
+    return SPEECH_AVATARS_FULL.find(avatar => avatar.name === avatarName);
+  }, [backendConfig]);
+
+  const isAvatarConfigEnabled = backendConfig?.config['avatar.avatar'] ?? true;
+
+  // Debug avatar configuration
+  useEffect(() => {
+    if (backendConfig && avatarDetails) {
+      console.log('🎭 Avatar config enabled:', isAvatarConfigEnabled);
+      console.log('Avatar name:', backendConfig.config['avatar.selectedAvatar.avatarName']);
+      console.log('Avatar details:', avatarDetails);
+      console.log('Avatar data available:', Boolean(avatarData));
+    }
+  }, [backendConfig, avatarDetails, avatarData, isAvatarConfigEnabled]);
 
 
 
@@ -223,17 +281,6 @@ export function VoiceLiveAgent(): JSX.Element {
 
   const isEmpty = messages.length === 0;
   const showIdleState = isEmpty && connectionState !== 'connected';
-  
-  // Check if avatar is enabled (inspired by foundry VoiceLiveAgent)
-  const isAvatarConfigEnabled = Boolean(config.session.avatar?.enabled);
-  
-  // Debug avatar configuration
-  useEffect(() => {
-    console.log('🎭 Avatar config enabled:', isAvatarConfigEnabled);
-    console.log('Avatar config:', config.session.avatar);
-    console.log('Avatar data:', avatarData);
-    console.log('Connection state:', connectionState);
-  }, [avatarData, connectionState, isAvatarConfigEnabled]);
 
   // Foundry-inspired render for non-avatar mode
   const renderNonAvatarMode = () => (
@@ -294,14 +341,14 @@ export function VoiceLiveAgent(): JSX.Element {
     <div className="chatbot">
       {/* Main Content Area - Takes remaining space */}
       <div className="main-content-area">
-        {/* Foundry-inspired conditional rendering based on avatar config */}
+        {/* Backend config-based conditional rendering */}
         {isAvatarConfigEnabled ? (
           <AvatarDisplay
             avatar={{
               enabled: true,
-              avatarName: config.session.avatar?.avatarName || config.session.avatar?.character || 'Avatar',
-              avatarBigImg: config.session.avatar?.avatarBigImg,
-              avatarImageUrl: config.session.avatar?.avatarImageUrl,
+              avatarName: backendConfig?.config['avatar.selectedAvatar.avatarName'] || 'Avatar',
+              avatarBigImg: avatarDetails?.img || avatarDetails?.lucencyBgImg,
+              avatarImageUrl: avatarDetails?.img || avatarDetails?.lucencyBgImg,
               ...avatarData, // Merge with any received avatar data
             }}
             isConnected={connectionState === 'connected'}

@@ -6,7 +6,9 @@ FastAPI server that proxies WebSocket connections to Azure Voice Live API with a
 import asyncio
 import json
 import logging
+import ast
 import os
+import sys
 import uuid
 from typing import Optional
 
@@ -15,6 +17,16 @@ import websockets
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from utils.voice_metadata import parse_voice_live_metadata, extract_selected_fields
+
+from dataclasses import dataclass
+from typing import Optional, Dict
+import os
+
+from typing import Optional, Dict, Any
+import aiohttp
+from urllib.parse import urljoin
+from azure.identity.aio import DefaultAzureCredential
 
 # Load environment variables
 load_dotenv()
@@ -23,6 +35,17 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+console = logging.StreamHandler(sys.stdout)
+
+console.setLevel(logging.DEBUG)
+
+console.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | line %(lineno)d | %(message)s"))
+ 
+logger.addHandler(console)
+ 
+
+ 
+
 # Azure Voice Live API Configuration
 AZURE_VOICE_API_VERSION = os.getenv("API_VERSION", "2025-05-01-preview")
 AZURE_COGNITIVE_SERVICES_DOMAIN = "cognitiveservices.azure.com"
@@ -30,12 +53,15 @@ VOICE_AGENT_ENDPOINT = "voice-agent/realtime"
 
 # Configuration from environment
 AZURE_AI_RESOURCE_NAME = os.getenv("AZURE_AI_RESOURCE_NAME")
-AZURE_AI_API_KEY = os.getenv("AZURE_AI_API_KEY")
 MODEL_DEPLOYMENT_NAME = os.getenv("MODEL_DEPLOYMENT_NAME", "gpt-4o")
 AVATAR_CHARACTER = os.getenv("AVATAR_CHARACTER", "lisa")
 AVATAR_STYLE = os.getenv("AVATAR_STYLE", "casual-sitting")
 VOICE_NAME = os.getenv("VOICE_NAME", "en-US-Ava:DragonHDLatestNeural")
 VOICE_TYPE = os.getenv("VOICE_TYPE", "azure-standard")
+AZURE_PROJECT_NAME = os.getenv("AZURE_PROJECT_NAME")
+AZURE_EXISTING_AGENT_NAME= os.getenv("AZURE_EXISTING_AGENT_NAME")
+AZURE_EXISTING_AGENT_VERSION= os.getenv("AZURE_EXISTING_AGENT_VERSION")
+AZURE_EXISTING_AIPROJECT_ENDPOINT= os.getenv("AZURE_EXISTING_AIPROJECT_ENDPOINT")
 
 # Create FastAPI app
 app = FastAPI(title="Azure Voice Live Proxy", version="1.0.0")
@@ -49,6 +75,88 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@dataclass
+class ApiEndpointConfig:
+    path: str
+    api_version: str
+    is_project: bool
+    token_params: Optional[Dict[str, str]] = None
+
+async def get_api_config() -> ApiEndpointConfig:
+    """Get API endpoint configuration based on resource ID."""
+    # Base configuration
+    api_version = "2025-05-15-preview"
+
+    
+    return ApiEndpointConfig(
+        path=AZURE_EXISTING_AIPROJECT_ENDPOINT,
+        api_version=api_version,
+        is_project=True,
+        token_params={"tokenType": "aml_default"}
+    )
+
+async def get_agent_v2() -> Dict[str, Any]:
+    # Get API configuration
+    config = await get_api_config()
+    
+    # Build request URL
+    url = f"{config.path}/agents/{AZURE_EXISTING_AGENT_NAME}/versions/{AZURE_EXISTING_AGENT_VERSION}"
+    
+    logger.info(f"Fetching agent from URL: {url}")
+    # Prepare query parameters
+    params = {
+        'api-version': config.api_version
+    }
+    
+    # Add token params if present (for project endpoints)
+    if config.token_params:
+        params.update(config.token_params)
+
+    credentials = DefaultAzureCredential()
+    token = await credentials.get_token("https://ai.azure.com/")
+    # Prepare headers
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {token.token}'
+    }
+    
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                url,
+                params=params,
+                headers=headers
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise ValueError(
+                        f"Failed to fetch agent: {response.status} - {error_text}"
+                    )
+                
+                return await response.json()
+            
+    except Exception as e:
+        logger.error(f"Error fetching agent {AZURE_EXISTING_AGENT_NAME} v{AZURE_EXISTING_AGENT_VERSION}: {e}")
+        raise
+
+
+async def initialize_agent():
+    agent = await get_agent_v2()
+    return agent
+
+# Global variables for storing agent data
+agent = None
+flat_metadata = None
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize the agent when the application starts."""
+    global agent, flat_metadata
+    agent = await initialize_agent()
+    metadata = agent.get("metadata", {})
+    flat_metadata = parse_voice_live_metadata(metadata)
+    logger.info(f"Extracted flat metadata: {flat_metadata}")
 
 class AzureVoiceProxyHandler:
     """Handles WebSocket proxy connections between client and Azure Voice API."""
@@ -60,7 +168,7 @@ class AzureVoiceProxyHandler:
         try:
             # Accept the WebSocket connection
             await client_ws.accept()
-            logger.info("✅ Client connected")
+            logger.info(f"✅ Client connected")
 
             # Connect to Azure Voice Live API
             azure_ws = await self._connect_to_azure()
@@ -77,7 +185,6 @@ class AzureVoiceProxyHandler:
                 "message": "Connected to Azure Voice API with avatar support"
             }))
 
-            # Handle bidirectional message forwarding
             await self._handle_message_forwarding(client_ws, azure_ws)
 
         except WebSocketDisconnect:
@@ -94,26 +201,27 @@ class AzureVoiceProxyHandler:
         finally:
             if azure_ws:
                 await azure_ws.close()
-                logger.info("🔌 Azure connection closed")
+            logger.info("🔌 Connection closed")
+    
 
     async def _connect_to_azure(self) -> Optional[websockets.WebSocketClientProtocol]:
-        """Connect to Azure Voice Live API with avatar support."""
-        if not AZURE_AI_RESOURCE_NAME or not AZURE_AI_API_KEY:
-            logger.error("❌ Missing Azure configuration. Check AZURE_AI_RESOURCE_NAME and AZURE_AI_API_KEY")
-            return None
+        """Connect to Azure Voice Live API."""
 
         try:
             # Build Azure WebSocket URL
-            client_request_id = uuid.uuid4()
             azure_url = (
                 f"wss://{AZURE_AI_RESOURCE_NAME}.{AZURE_COGNITIVE_SERVICES_DOMAIN}/"
                 f"{VOICE_AGENT_ENDPOINT}?api-version={AZURE_VOICE_API_VERSION}"
-                f"&model={MODEL_DEPLOYMENT_NAME}"
-                f"&x-ms-client-request-id={client_request_id}"
+                f"&agent-name={AZURE_EXISTING_AGENT_NAME}"
+                f"&agent-project-name={AZURE_PROJECT_NAME}"
             )
 
+
+            credentials = DefaultAzureCredential()
+            token = await credentials.get_token("https://ai.azure.com/.default")
+
             # Connect with API key authentication using extra_headers
-            headers = {"api-key": AZURE_AI_API_KEY}
+            headers = {"Authorization": f'Bearer {token.token}'}
             azure_ws = await websockets.connect(azure_url, extra_headers=headers)
             
             logger.info(f"✅ Connected to Azure Voice API: {AZURE_AI_RESOURCE_NAME}")
@@ -129,26 +237,30 @@ class AzureVoiceProxyHandler:
 
     async def _send_initial_avatar_config(self, azure_ws: websockets.WebSocketClientProtocol) -> None:
         """Send initial session configuration with avatar enabled."""
+        global flat_metadata
+        avatar_name = flat_metadata.get('avatar.selectedAvatar.avatarName')
+        character_name = avatar_name.split("-")[0].lower()
+        character_style = avatar_name.split("-")[1]
         session_config = {
             "type": "session.update",
             "session": {
                 "modalities": ["text", "audio"],
-                "turn_detection": {"type": "azure_semantic_vad"},
-                "input_audio_noise_reduction": {"type": "azure_deep_noise_suppression"},
+                "turn_detection": {"type": flat_metadata.get('speech.voiceActivityDetection')},
+                "input_audio_noise_reduction": {"type": "azure_deep_noise_suppression" if flat_metadata.get('speech.noiseSuppression') else "near_field"},
                 "input_audio_echo_cancellation": {"type": "server_echo_cancellation"},
                 "avatar": {
-                    "character": AVATAR_CHARACTER,
-                    "style": AVATAR_STYLE,
+                    "character": character_name,
+                    "style": character_style,
                 },
                 "voice": {
-                    "name": VOICE_NAME,
+                    "name": flat_metadata.get('speech.voice.shortName'),
                     "type": VOICE_TYPE,
                 },
             },
         }
+
         
         await azure_ws.send(json.dumps(session_config))
-        logger.info(f"📤 Sent avatar session config: character={AVATAR_CHARACTER}, style={AVATAR_STYLE}")
 
     async def _handle_message_forwarding(
         self, 
@@ -243,9 +355,7 @@ async def get_config():
     """Return client configuration."""
     return {
         "ws_endpoint": "/ws",
-        "avatar_enabled": True,
-        "azure_resource": AZURE_AI_RESOURCE_NAME,
-        "model": MODEL_DEPLOYMENT_NAME
+        "config": flat_metadata
     }
 
 
@@ -257,8 +367,6 @@ if __name__ == "__main__":
     logger.info(f"🚀 Starting Azure Voice Live Proxy Server")
     logger.info(f"📡 Server: http://{host}:{port}")
     logger.info(f"🌐 WebSocket: ws://{host}:{port}/ws")
-    logger.info(f"☁️  Azure Resource: {AZURE_AI_RESOURCE_NAME}")
-    logger.info(f"👤 Avatar: {AVATAR_CHARACTER} ({AVATAR_STYLE})")
     
     # Start the server
     uvicorn.run(
