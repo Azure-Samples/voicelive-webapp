@@ -103,6 +103,8 @@ def parse_voice_live_metadata(data: Mapping[str, Any]) -> Dict[str, Any]:
 
     parsed = _safe_parse_json(raw)
 
+    print(f"Parsed voiceLiveConfig raw data: {raw}")
+
     # normalize list-of-one
     if isinstance(parsed, list) and len(parsed) == 1:
         parsed = parsed[0]

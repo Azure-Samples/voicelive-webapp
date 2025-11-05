@@ -1,33 +1,35 @@
 """
-Azure Voice Live Integration Server with Agent V2 Support
-
-FastAPI server that integrates with Azure Voice Live API using an existing Agent V2.
+Azure Voice Live API Proxy Backend
+FastAPI server that proxies WebSocket connections to Azure Voice Live API with avatar support
 """
 
 import asyncio
 import json
 import logging
+import ast
 import os
-from datetime import datetime
 import sys
-from typing import Dict, Any, Optional
-from dataclasses import dataclass
+import uuid
+from typing import Optional
 
 import uvicorn
+import websockets
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from utils.voice_metadata import parse_voice_live_metadata, extract_selected_fields
 
-# Import the necessary modules
-from azure.core.credentials import AzureKeyCredential
-from azure.identity import DefaultAzureCredential
-from azure.ai.voicelive.aio import connect
-from voice_live_with_agent_v2 import (
-    AudioProcessor,
-    BasicVoiceAssistant
-)
+from dataclasses import dataclass
+from typing import Optional, Dict
+import os
 
-MODEL_DEPLOYMENT_NAME = os.getenv("MODEL_DEPLOYMENT_NAME", "gpt-4")
+from typing import Optional, Dict, Any
+import aiohttp
+from urllib.parse import urljoin
+from azure.identity.aio import DefaultAzureCredential
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,10 +44,8 @@ console.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | line %(lin
 logger.addHandler(console)
  
 
-# Load environment variables
-load_dotenv()
+ 
 
-# Configuration from environment
 # Azure Voice Live API Configuration
 AZURE_VOICE_API_VERSION = os.getenv("API_VERSION", "2025-05-01-preview")
 AZURE_COGNITIVE_SERVICES_DOMAIN = "cognitiveservices.azure.com"
@@ -60,15 +60,12 @@ AVATAR_STYLE = os.getenv("AVATAR_STYLE", "casual-sitting")
 VOICE_NAME = os.getenv("VOICE_NAME", "en-US-Ava:DragonHDLatestNeural")
 VOICE_TYPE = os.getenv("VOICE_TYPE", "azure-standard")
 AZURE_PROJECT_NAME = os.getenv("AZURE_PROJECT_NAME")
-AZURE_EXISTING_AGENT_NAME = os.getenv("AZURE_EXISTING_AGENT_NAME")
-AZURE_EXISTING_AGENT_VERSION = os.getenv("AZURE_EXISTING_AGENT_VERSION")
-AZURE_EXISTING_AIPROJECT_ENDPOINT = os.getenv("AZURE_EXISTING_AIPROJECT_ENDPOINT")
-AZURE_BEARER_TOKEN = os.getenv("AZURE_BEARER_TOKEN")
-AZURE_AI_ENDPOINT=os.getenv("AZURE_AI_ENDPOINT")
-
+AZURE_EXISTING_AGENT_NAME= os.getenv("AZURE_EXISTING_AGENT_NAME")
+AZURE_EXISTING_AGENT_VERSION= os.getenv("AZURE_EXISTING_AGENT_VERSION")
+AZURE_EXISTING_AIPROJECT_ENDPOINT= os.getenv("AZURE_EXISTING_AIPROJECT_ENDPOINT")
 
 # Create FastAPI app
-app = FastAPI(title="Azure Voice Live Agent V2 Integration Server", version="1.0.0")
+app = FastAPI(title="Azure Voice Live Proxy", version="1.0.0")
 
 # Add CORS middleware
 app.add_middleware(
@@ -86,12 +83,12 @@ class ApiEndpointConfig:
     is_project: bool
     token_params: Optional[Dict[str, str]] = None
 
-def get_api_config() -> ApiEndpointConfig:
+async def get_api_config() -> ApiEndpointConfig:
     """Get API endpoint configuration based on resource ID."""
     # Base configuration
     api_version = "2025-05-15-preview"
 
-
+    
     return ApiEndpointConfig(
         path=AZURE_EXISTING_AIPROJECT_ENDPOINT,
         api_version=api_version,
@@ -99,279 +96,281 @@ def get_api_config() -> ApiEndpointConfig:
         token_params={"tokenType": "aml_default"}
     )
 
-def get_agent_v2_url() -> str:
+async def get_agent_v2() -> Dict[str, Any]:
     # Get API configuration
-    config = get_api_config()
-
+    config = await get_api_config()
+    
     # Build request URL
     url = f"{config.path}/agents/{AZURE_EXISTING_AGENT_NAME}/versions/{AZURE_EXISTING_AGENT_VERSION}"
+    
+    logger.info(f"Fetching agent from URL: {url}")
+    # Prepare query parameters
+    params = {
+        'api-version': config.api_version
+    }
+    
+    # Add token params if present (for project endpoints)
+    if config.token_params:
+        params.update(config.token_params)
 
-    logger.info(f"Building Agent V2 URL with base: {url}")
-
-    return url
-
-
-async def setup_voice_connection():
-    """Set up voice connection with the Agent V2."""
-    logger.info("🔗 Setting up connection to Azure Voice Live...")
+    credentials = DefaultAzureCredential()
+    token = await credentials.get_token("https://ai.azure.com/")
+    # Prepare headers
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {token.token}'
+    }
+    
+    
     try:
-        # Get Azure credentials using DefaultAzureCredential
-        credential = DefaultAzureCredential()
-
-        # Create the endpoint URL with query parameters for Agent V2
-        endpoint = get_agent_v2_url()
-
-        logger.info(f"✅ Endpoint URL: {endpoint}")
-
-
-        # Create connection
-        connection = BasicVoiceAssistant(
-            endpoint=AZURE_AI_ENDPOINT,
-            credential=credential,
-            agent_name=AZURE_EXISTING_AGENT_NAME,
-            foundry_project_name=AZURE_PROJECT_NAME,
-            voice=VOICE_NAME,
-        )
-        
-        logger.info(f"✅ Connected to Azure Voice Live with Agent: {AZURE_EXISTING_AGENT_NAME}")
-        return connection
-
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                url,
+                params=params,
+                headers=headers
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise ValueError(
+                        f"Failed to fetch agent: {response.status} - {error_text}"
+                    )
+                
+                return await response.json()
+            
     except Exception as e:
-        logger.error(f"❌ Failed to connect to Azure: {e}")
+        logger.error(f"Error fetching agent {AZURE_EXISTING_AGENT_NAME} v{AZURE_EXISTING_AGENT_VERSION}: {e}")
         raise
 
 
-class VoiceLiveHandler:
-    """Handles WebSocket connections and Azure Voice Live Agent V2 integration."""
+async def initialize_agent():
+    agent = await get_agent_v2()
+    return agent
 
-    def __init__(self):
-        """Initialize the handler."""
-        self.connection = None
-        self.audio_processor = None
-        self.conversation_log = []
+# Global variables for storing agent data
+agent = None
+flat_metadata = None
 
-    async def handle_connection(self, websocket: WebSocket) -> None:
-        logger.info("🔗 hereeee...")
+@app.on_event("startup")
+async def startup_event():
+    """Initialize the agent when the application starts."""
+    global agent, flat_metadata
+    agent = await initialize_agent()
+    metadata = agent.get("metadata", {})
+    flat_metadata = parse_voice_live_metadata(metadata)
+    logger.info(f"Extracted flat metadata: {flat_metadata}")
+
+class AzureVoiceProxyHandler:
+    """Handles WebSocket proxy connections between client and Azure Voice API."""
+
+    async def handle_connection(self, client_ws: WebSocket) -> None:
         """Handle a WebSocket connection from a client."""
+        azure_ws = None
+        
         try:
             # Accept the WebSocket connection
-            await websocket.accept()
-            logger.info("✅ Client connected")
+            await client_ws.accept()
+            logger.info(f"✅ Client connected")
 
-            # Connect to Azure Voice Live
-            self.connection = await setup_voice_connection()
-            if not self.connection:
-                await websocket.send_text(json.dumps({
-                    "type": "error",
-                    "error": {"message": "Failed to connect to Azure Voice Live"}
+            # Connect to Azure Voice Live API
+            azure_ws = await self._connect_to_azure()
+            if not azure_ws:
+                await client_ws.send_text(json.dumps({
+                    "type": "error", 
+                    "error": {"message": "Failed to connect to Azure Voice API"}
                 }))
                 return
 
-            # # Initialize audio processor
-            # self.audio_processor = AudioProcessor(self.connection)
-            # self.audio_processor.start_capture()
-            # self.audio_processor.start_playback()
-
             # Send connection confirmation
-            await websocket.send_text(json.dumps({
-                "type": "connected",
-                "status": "success",
-                "message": f"Connected to Agent: {AZURE_EXISTING_AGENT_NAME}"
+            await client_ws.send_text(json.dumps({
+                "type": "proxy.connected", 
+                "message": "Connected to Azure Voice API with avatar support"
             }))
-
-            # Handle messages
-            await self._handle_messages(websocket)
 
         except WebSocketDisconnect:
             logger.info("🔌 Client disconnected")
         except Exception as e:
-            logger.error(f"❌ Error in connection handler: {e}")
+            logger.error(f"❌ Proxy error: {e}")
             try:
-                await websocket.send_text(json.dumps({
-                    "type": "error",
+                await client_ws.send_text(json.dumps({
+                    "type": "error", 
                     "error": {"message": str(e)}
                 }))
             except:
                 pass
         finally:
-            # Save conversation log
-            self._save_conversation_log()
-            
-            # Cleanup
-            if self.audio_processor:
-                self.audio_processor.stop_capture()
-                self.audio_processor.stop_playback()
-            if self.connection:
-                await self.connection.close()
+            if azure_ws:
+                await azure_ws.close()
             logger.info("🔌 Connection closed")
+    
 
-    def _save_conversation_log(self) -> None:
-        """Save the conversation log to a file."""
-        try:
-            filename = f"logs/{timestamp}_conversation.log"
-            with open(filename, "w") as f:
-                for entry in self.conversation_log:
-                    f.write(json.dumps(entry) + "\n")
-            logger.info(f"Conversation log saved to {filename}")
-        except Exception as e:
-            logger.error(f"Failed to save conversation log: {e}")
+    async def _connect_to_azure(self) -> Optional[websockets.WebSocketClientProtocol]:
+        """Connect to Azure Voice Live API."""
+        if not AZURE_AI_RESOURCE_NAME or not AZURE_AI_API_KEY:
+            logger.error("❌ Missing Azure configuration. Check AZURE_AI_RESOURCE_NAME and AZURE_AI_API_KEY")
+            return None
 
-    async def _handle_messages(self, websocket: WebSocket) -> None:
-        """Handle bidirectional message flow."""
         try:
-            # Start Azure event handler
-            # azure_task = asyncio.create_task(self._handle_azure_events(websocket))
+            # Build Azure WebSocket URL
+            azure_url = (
+                f"wss://{AZURE_AI_RESOURCE_NAME}.{AZURE_COGNITIVE_SERVICES_DOMAIN}/"
+                f"{VOICE_AGENT_ENDPOINT}?agent-project-name={AZURE_PROJECT_NAME}"
+                f"&agent-name={AZURE_EXISTING_AGENT_NAME}"
+            )
+
+
+            print(f"🔑 Azure URL: {azure_url}")
+            credentials = DefaultAzureCredential()
+            token = await credentials.get_token("https://ai.azure.com/.default")
+
+            print(f"🔑 Acquired Azure token: {token.token}")
+            # Connect with API key authentication using extra_headers
+            headers = {"Authorization": f'Bearer {token.token}'}
+            azure_ws = await websockets.connect(azure_url, extra_headers=headers)
             
-            # Handle client messages
-            while True:
-                try:
-                    # Get message from client
-                    message = await websocket.receive_text()
-                    data = json.loads(message)
+            logger.info(f"✅ Connected to Azure Voice API: {AZURE_AI_RESOURCE_NAME}")
 
-                    logger.info(f"Received message from client: {data}")
+            # Send initial avatar-enabled session configuration
+            await self._send_initial_avatar_config(azure_ws)
 
-                    # Log user input
-                    if data.get("type") == "text":
-                        self.conversation_log.append({
-                            "timestamp": datetime.now().isoformat(),
-                            "role": "user",
-                            "text": data.get("text", "")
-                        })
-                        await self.connection.send_text(data.get("text", ""))
-                    elif data.get("type") == "command":
-                        await self._handle_command(websocket, data.get("command"))
-                    
-                except WebSocketDisconnect:
-                    break
-                except json.JSONDecodeError:
-                    logger.error("Invalid JSON received from client")
-                    continue
-                except Exception as e:
-                    logger.error(f"Error handling client message: {e}")
-                    continue
+            return azure_ws
 
         except Exception as e:
-            logger.error(f"Error in message handler: {e}")
-            raise
+            logger.error(f"❌ Failed to connect to Azure: {e}")
+            return None
 
-    async def _handle_command(self, websocket: WebSocket, command: Dict) -> None:
-        """Handle custom commands from client."""
+    async def _send_initial_avatar_config(self, azure_ws: websockets.WebSocketClientProtocol) -> None:
+        """Send initial session configuration with avatar enabled."""
+        global flat_metadata
+        session_config = {
+            "type": "session.update",
+            "session": {
+                "modalities": ["text", "audio"],
+                "turn_detection": {"type": flat_metadata.get('speech.voiceActivityDetection')},
+                "input_audio_noise_reduction": {"type": "azure_deep_noise_suppression" if flat_metadata.get('speech.noiseSuppression') else "near_field"},
+                "input_audio_echo_cancellation": {"type": "server_echo_cancellation"},
+                "avatar": {
+                    "character": AVATAR_CHARACTER,
+                    "style": AVATAR_STYLE,
+                },
+                "voice": {
+                    "name": flat_metadata.get('speech.voice.shortName'),
+                    "type": VOICE_TYPE,
+                },
+            },
+        }
+
+        logger.info(f"varshaaaaaaa {session_config}")
+        
+        await azure_ws.send(json.dumps(session_config))
+        logger.info(f"📤 Sent avatar session config: character={AVATAR_CHARACTER}, style={AVATAR_STYLE}")
+
+    async def _handle_message_forwarding(
+        self, 
+        client_ws: WebSocket, 
+        azure_ws: websockets.WebSocketClientProtocol
+    ) -> None:
+        """Handle bidirectional message forwarding between client and Azure."""
+        
+        # Create tasks for both directions
+        client_to_azure_task = asyncio.create_task(
+            self._forward_client_to_azure(client_ws, azure_ws)
+        )
+        azure_to_client_task = asyncio.create_task(
+            self._forward_azure_to_client(azure_ws, client_ws)
+        )
+
+        # Wait for either task to complete (connection close)
+        _, pending = await asyncio.wait(
+            [client_to_azure_task, azure_to_client_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+
+        # Cancel remaining tasks
+        for task in pending:
+            task.cancel()
+
+    async def _forward_client_to_azure(
+        self, 
+        client_ws: WebSocket, 
+        azure_ws: websockets.WebSocketClientProtocol
+    ) -> None:
+        """Forward messages from client to Azure."""
         try:
-            cmd_type = command.get("type")
-            if cmd_type == "reset":
-                # Reset conversation
-                self.conversation_log = []
-                await websocket.send_text(json.dumps({
-                    "type": "command",
-                    "status": "success",
-                    "command": "reset"
-                }))
-            
+            async for message in client_ws.iter_text():
+                logger.debug(f"📤 Client→Azure: {message[:100]}...")
+                await azure_ws.send(message)
+        except WebSocketDisconnect:
+            logger.debug("🔌 Client disconnected during forwarding")
         except Exception as e:
-            logger.error(f"Error handling command: {e}")
-            await websocket.send_text(json.dumps({
-                "type": "error",
-                "error": {"message": f"Command failed: {str(e)}"}
-            }))
+            logger.error(f"❌ Error forwarding client to Azure: {e}")
 
-    async def _handle_azure_events(self, websocket: WebSocket) -> None:
-        """Handle events from Azure Voice Live."""
-        if not self.connection or not self.audio_processor:
-            logger.error("Connection or audio processor not initialized")
-            return
-
+    async def _forward_azure_to_client(
+        self, 
+        azure_ws: websockets.WebSocketClientProtocol, 
+        client_ws: WebSocket
+    ) -> None:
+        """Forward messages from Azure to client."""
         try:
-            async for event in self.connection.events():
-                try:
-                    if event.type == "audio":
-                        # Queue audio for playback
-                        if event.data:
-                            packet = self.audio_processor.AudioPlaybackPacket(
-                                self.audio_processor._get_and_increase_seq_num(),
-                                event.data
-                            )
-                            self.audio_processor.playback_queue.put(packet)
-                    elif event.type == "text":
-                        # Log assistant response
-                        self.conversation_log.append({
-                            "timestamp": datetime.now().isoformat(),
-                            "role": "assistant",
-                            "text": event.data
-                        })
-                        # Forward text to client
-                        await websocket.send_text(json.dumps({
-                            "type": "text",
-                            "text": event.data
-                        }))
-                    elif event.type == "error":
-                        logger.error(f"Received error from Azure: {event.data}")
-                        await websocket.send_text(json.dumps({
-                            "type": "error",
-                            "error": {"message": str(event.data)}
-                        }))
+            async for message in azure_ws:
+                logger.debug(f"📥 Azure→Client: {message[:100]}...")
                 
-                except WebSocketDisconnect:
-                    break
-                except Exception as e:
-                    logger.error(f"Error handling Azure event: {e}")
-                    continue
-
-        except asyncio.CancelledError:
-            logger.info("Azure event handler cancelled")
+                # Log ICE servers when they arrive
+                try:
+                    data = json.loads(message)
+                    if (data.get("type") == "session.updated" and 
+                        data.get("session", {}).get("avatar", {}).get("ice_servers")):
+                        ice_servers = data["session"]["avatar"]["ice_servers"]
+                        logger.info(f"🧊 ICE servers received from Azure: {len(ice_servers)} servers")
+                except:
+                    pass  # Not all messages are JSON
+                
+                await client_ws.send_text(message)
+        except websockets.exceptions.ConnectionClosed:
+            logger.debug("🔌 Azure connection closed during forwarding")
         except Exception as e:
-            logger.error(f"Error in Azure event handler: {e}")
-            raise
+            logger.error(f"❌ Error forwarding Azure to client: {e}")
 
 
-# Initialize the handler
-handler = VoiceLiveHandler()
+# Initialize the proxy handler
+proxy_handler = AzureVoiceProxyHandler()
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket) -> None:
-    """WebSocket endpoint for client connections."""
-    logger.info("🌐 New WebSocket connection request hello")
-    await handler.handle_connection(websocket)
+async def websocket_endpoint(websocket: WebSocket):
+    """Main WebSocket endpoint for client connections."""
+    await proxy_handler.handle_connection(websocket)
 
 
 @app.get("/")
-async def root() -> Dict[str, Any]:
+async def root():
     """Health check endpoint."""
     return {
-        "message": "Azure Voice Live Agent V2 Integration Server",
+        "message": "Azure Voice Live Proxy Server", 
         "status": "running",
-        "azure_resource": AZURE_AI_RESOURCE_NAME,
-        "agent": AZURE_EXISTING_AGENT_NAME,
-        "project": AZURE_PROJECT_NAME,
-        "voice": VOICE_NAME
+        "avatar_support": True,
+        "azure_resource": AZURE_AI_RESOURCE_NAME
+    }
+
+
+@app.get("/config")
+async def get_config():
+    """Return client configuration."""
+    return {
+        "ws_endpoint": "/ws",
+        "config": flat_metadata
     }
 
 
 if __name__ == "__main__":
-    # Validate environment variables
-    required_vars = {
-        "AZURE_AI_RESOURCE_NAME": AZURE_AI_RESOURCE_NAME,
-        "AZURE_PROJECT_NAME": AZURE_PROJECT_NAME,
-        "AZURE_EXISTING_AGENT_NAME": AZURE_EXISTING_AGENT_NAME
-    }
-    
-    missing_vars = [var for var, value in required_vars.items() if not value]
-    if missing_vars:
-        logger.error(f"❌ Missing required environment variables: {', '.join(missing_vars)}")
-        raise ValueError(f"Required environment variables must be set in .env file: {', '.join(missing_vars)}")
-    
     # Configuration
     host = os.getenv("HOST", "localhost")
-    port = int(os.getenv("PORT", 8081))
+    port = int(os.getenv("PORT", 8080))
     
-    logger.info(f"🚀 Starting Azure Voice Live Agent V2 Integration Server")
+    logger.info(f"🚀 Starting Azure Voice Live Proxy Server")
     logger.info(f"📡 Server: http://{host}:{port}")
     logger.info(f"🌐 WebSocket: ws://{host}:{port}/ws")
     logger.info(f"☁️  Azure Resource: {AZURE_AI_RESOURCE_NAME}")
-    logger.info(f"🤖 Agent: {AZURE_EXISTING_AGENT_NAME}")
-    logger.info(f"📂 Project: {AZURE_PROJECT_NAME}")
-    logger.info(f"🗣️  Voice: {VOICE_NAME}")
+    logger.info(f"👤 Avatar: {AVATAR_CHARACTER} ({AVATAR_STYLE})")
     
     # Start the server
     uvicorn.run(
