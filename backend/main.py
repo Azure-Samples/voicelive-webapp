@@ -217,11 +217,9 @@ class AzureVoiceProxyHandler:
             )
 
 
-            print(f"🔑 Azure URL: {azure_url}")
             credentials = DefaultAzureCredential()
             token = await credentials.get_token("https://ai.azure.com/.default")
 
-            print(f"🔑 Acquired Azure token: {token.token}")
             # Connect with API key authentication using extra_headers
             headers = {"Authorization": f'Bearer {token.token}'}
             azure_ws = await websockets.connect(azure_url, extra_headers=headers)
@@ -261,10 +259,8 @@ class AzureVoiceProxyHandler:
             },
         }
 
-        logger.info(f"varshaaaaaaa {session_config}")
         
         await azure_ws.send(json.dumps(session_config))
-        logger.info(f"📤 Sent avatar session config: character={AVATAR_CHARACTER}, style={AVATAR_STYLE}")
 
     async def _handle_message_forwarding(
         self, 
@@ -371,8 +367,6 @@ if __name__ == "__main__":
     logger.info(f"🚀 Starting Azure Voice Live Proxy Server")
     logger.info(f"📡 Server: http://{host}:{port}")
     logger.info(f"🌐 WebSocket: ws://{host}:{port}/ws")
-    logger.info(f"☁️  Azure Resource: {AZURE_AI_RESOURCE_NAME}")
-    logger.info(f"👤 Avatar: {AVATAR_CHARACTER} ({AVATAR_STYLE})")
     
     # Start the server
     uvicorn.run(
