@@ -186,6 +186,8 @@ class AzureVoiceProxyHandler:
                 "message": "Connected to Azure Voice API with avatar support"
             }))
 
+            await self._handle_message_forwarding(client_ws, azure_ws)
+
         except WebSocketDisconnect:
             logger.info("🔌 Client disconnected")
         except Exception as e:
@@ -213,8 +215,9 @@ class AzureVoiceProxyHandler:
             # Build Azure WebSocket URL
             azure_url = (
                 f"wss://{AZURE_AI_RESOURCE_NAME}.{AZURE_COGNITIVE_SERVICES_DOMAIN}/"
-                f"{VOICE_AGENT_ENDPOINT}?agent-project-name={AZURE_PROJECT_NAME}"
+                f"{VOICE_AGENT_ENDPOINT}?api-version={AZURE_VOICE_API_VERSION}"
                 f"&agent-name={AZURE_EXISTING_AGENT_NAME}"
+                f"&agent-project-name={AZURE_PROJECT_NAME}"
             )
 
 
