@@ -1,0 +1,10 @@
+name: foundry-voice-agent-teams-delegate
+metadata:
+  template: foundry-voice-agent-teams-delegate@0.1.0
+services:
+  web:
+    project: .
+    host: containerapp
+    language: ts
+    docker:
+      path: Dockerfile

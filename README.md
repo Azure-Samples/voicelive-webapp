@@ -2,6 +2,16 @@
 
 A real-time voice chat application with avatar support built using Azure Voice Live API and WebRTC.
 
+## Additional samples
+
+- [`samples/teams-meeting-delegate`](samples/teams-meeting-delegate) connects
+  an existing Microsoft Foundry Voice-First Agent and avatar to a Microsoft
+  Teams meeting through Azure Communication Services.
+- [`samples/meeting-tools-function`](samples/meeting-tools-function) is an
+  optional Azure Functions/OpenAPI tool template with customizable meeting
+  disclosure guardrails, recaps, calendar actions, out-of-office guidance,
+  and Teams hand controls.
+
 ## Features
 
 - Real-time voice communication with AI agent

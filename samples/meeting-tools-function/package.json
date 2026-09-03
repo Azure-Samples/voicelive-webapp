@@ -1,0 +1,27 @@
+{
+  "name": "foundry-meeting-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/src/index.js",
+  "packageManager": "pnpm@10.34.3",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "func start",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@azure/functions": "4.8.0",
+    "@azure/identity": "4.13.1",
+    "@azure/storage-blob": "12.29.1",
+    "@azure/web-pubsub": "1.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

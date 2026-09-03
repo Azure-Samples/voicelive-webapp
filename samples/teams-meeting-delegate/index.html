@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Join a Teams meeting with a Microsoft Foundry Voice-First Agent delegate."
+    />
+    <title>Foundry Voice Agent Teams Delegate</title>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel" aria-labelledby="page-title">
+        <p class="eyebrow">Customer accelerator</p>
+        <h1 id="page-title">Foundry Voice Agent Teams Delegate</h1>
+        <p class="lede">
+          Join a Teams meeting through Azure Communication Services and use an
+          existing Foundry Voice-First Agent as the delegate's only reasoning,
+          voice, tool, and avatar runtime.
+        </p>
+
+        <form id="join-form">
+          <label for="profile">Executive profile</label>
+          <select id="profile" name="profile" required></select>
+
+          <label for="meeting-link">Teams meeting link</label>
+          <input
+            id="meeting-link"
+            name="meetingLink"
+            type="url"
+            autocomplete="off"
+            placeholder="https://teams.microsoft.com/l/meetup-join/..."
+            required
+          />
+
+          <label for="meeting-brief">
+            Meeting brief (when structured inputs are configured)
+          </label>
+          <textarea
+            id="meeting-brief"
+            name="meetingBrief"
+            maxlength="4000"
+            rows="5"
+            placeholder="Purpose, attendees, desired outcomes, and boundaries for this meeting."
+          ></textarea>
+
+          <div class="actions">
+            <button id="join-button" type="submit">Join as delegate</button>
+            <button id="leave-button" type="button" disabled>Leave</button>
+          </div>
+        </form>
+
+        <div class="status-grid" aria-live="polite">
+          <div>
+            <span>Teams</span>
+            <strong id="teams-status">Not connected</strong>
+          </div>
+          <div>
+            <span>Foundry agent</span>
+            <strong id="agent-status">Not connected</strong>
+          </div>
+          <div>
+            <span>Avatar</span>
+            <strong id="avatar-status">Waiting</strong>
+          </div>
+        </div>
+
+        <canvas
+          id="avatar-canvas"
+          width="1280"
+          height="720"
+          aria-label="Avatar video preview"
+        ></canvas>
+
+        <section aria-labelledby="transcript-title">
+          <h2 id="transcript-title">Live transcript</h2>
+          <ol id="transcript" class="transcript"></ol>
+        </section>
+
+        <p id="error" class="error" role="alert" hidden></p>
+      </section>
+    </main>
+    <script type="module" src="/src/client/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,4 @@
+dist/
+local.settings.json
+node_modules/
+*.zip
