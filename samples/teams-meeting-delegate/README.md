@@ -1,7 +1,11 @@
 # Foundry Voice Agent Teams Delegate
 
 This standalone accelerator turns an existing Microsoft Foundry Voice-First
-Agent into a browser-hosted participant in a Microsoft Teams meeting.
+Agent into both:
+
+- a browser-hosted participant in a Microsoft Teams meeting; and
+- a directly interactive Microsoft Teams personal app for private voice,
+  text, and avatar conversations.
 
 The Foundry agent remains the only agent runtime. This code does not copy or
 override the agent's model, instructions, voice, avatar, tools, knowledge,
@@ -23,6 +27,18 @@ ACS connection string and obtains a Foundry bearer token with
 `DefaultAzureCredential`. The browser cannot choose an arbitrary Foundry URL,
 change the agent configuration, or access another executive's profile.
 
+The personal app does not use ACS. It initializes TeamsJS, obtains a Teams SSO
+token, exchanges it for a one-time WebSocket ticket, and connects the user's
+microphone directly to the same Foundry agent proxy:
+
+```text
+Teams personal app
+    <-> TeamsJS and Teams SSO
+    <-> same-origin Node.js security proxy
+    <-> existing Foundry Voice-First Agent
+    <-> avatar WebRTC audio/video
+```
+
 ## What is implemented
 
 - Join a Teams meeting with an ACS communication identity.
@@ -36,6 +52,10 @@ change the agent configuration, or access another executive's profile.
   allowlist.
 - Reject browser `session.update` events so agent-owned settings remain the
   source of truth.
+- Open the same agent as a Teams personal app for direct private interaction.
+- Accept bounded text messages through a server-owned `bridge.text` contract.
+- Exchange Teams SSO for a one-time WebSocket ticket so bearer tokens never
+  appear in WebSocket URLs.
 
 ## Prerequisites
 
@@ -49,6 +69,9 @@ change the agent configuration, or access another executive's profile.
    audio/video.
 7. A single-tenant Microsoft Entra application and client secret for
    Container Apps built-in authentication.
+8. For the personal app, expose
+   `api://<container-app-host>/<ENTRA_CLIENT_ID>` on that Entra application
+   and authorize the Teams desktop/mobile and Teams web client applications.
 
 The browser raw-media path is suitable for a customer PoC and requires the tab
 to remain open. A fully unattended production meeting participant requires a
@@ -105,6 +128,9 @@ npm run dev
 Open `http://localhost:5173`. Local development uses `DEV_USER_ID`; production
 does not.
 
+- Meeting delegate: `http://localhost:5173/`
+- Direct personal agent: `http://localhost:5173/personal.html`
+
 ## Deploy the PoC host
 
 The included `azure.yaml`, Bicep, and Dockerfile deploy the browser and proxy
@@ -119,14 +145,17 @@ After deployment:
 
 1. Add
    `https://<container-app-host>/.auth/login/aad/callback` as a Web redirect
-   URI on the Entra application. The deployment enables authentication and
-   blocks unauthenticated access before this redirect is configured.
+   URI on the Entra application.
 2. Add the deployed managed identity as **Foundry User** on the Foundry
    resource.
 3. Confirm `EXECUTIVE_PROFILES_BASE64` contains production Entra object IDs.
 4. Remove `DEV_USER_ID`.
+5. For direct Teams interaction, configure the application ID URI and package
+   under [`appPackage`](appPackage/README.md), then sideload or publish it.
 
-The application fails closed when no authenticated principal is supplied.
+Static pages are public so Teams can load the personal tab. Every API and
+WebSocket operation still fails closed when no validated Easy Auth principal
+or local development identity is supplied.
 
 ## Optional meeting tools
 
@@ -140,6 +169,8 @@ attach its OpenAPI document to the Foundry agent.
 
 - Never put an ACS connection string, Foundry key, or Foundry bearer token in
   browser code.
+- Never put a Teams SSO token in a WebSocket URL. The personal app exchanges
+  it for a short-lived, one-use ticket.
 - Keep the profile allowlist populated in production.
 - The proxy constructs and validates the Foundry URL from server-side profile
   configuration and only permits the expected `*.services.ai.azure.com`

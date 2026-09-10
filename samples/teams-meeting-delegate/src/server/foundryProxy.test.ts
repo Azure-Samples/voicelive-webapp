@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildVoiceAgentUrl,
   parseConfigureMessage,
+  parseTextMessage,
 } from './foundryProxy.js';
 
 const profile = {
@@ -45,5 +46,20 @@ describe('Foundry proxy policy', () => {
         sessionId: 'meeting-session-1',
       }),
     ).toThrow('at most 4,000');
+  });
+
+  it('accepts bounded user text and rejects empty messages', () => {
+    expect(
+      parseTextMessage({
+        type: 'bridge.text',
+        text: '  What is on my calendar?  ',
+      }),
+    ).toEqual({
+      type: 'bridge.text',
+      text: 'What is on my calendar?',
+    });
+    expect(() =>
+      parseTextMessage({ type: 'bridge.text', text: '   ' }),
+    ).toThrow('cannot be empty');
   });
 });

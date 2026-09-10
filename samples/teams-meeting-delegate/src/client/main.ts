@@ -51,6 +51,13 @@ function addTranscript(role: 'You' | 'Agent', text: string): void {
 
 async function loadProfiles(): Promise<void> {
   const response = await fetch('/api/profiles');
+  if (response.status === 401) {
+    const returnUrl = encodeURIComponent(window.location.href);
+    window.location.assign(
+      `/.auth/login/aad?post_login_redirect_uri=${returnUrl}`,
+    );
+    return;
+  }
   const body = (await response.json()) as
     | PublicExecutiveProfile[]
     | { error?: string };

@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -5,6 +7,12 @@ export default defineConfig({
   build: {
     outDir: 'dist/client',
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        delegate: resolve(__dirname, 'index.html'),
+        personal: resolve(__dirname, 'personal.html'),
+      },
+    },
   },
   server: {
     port: 5173,
