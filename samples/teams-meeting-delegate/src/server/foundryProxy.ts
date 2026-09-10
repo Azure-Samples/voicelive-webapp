@@ -1,7 +1,10 @@
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import type { AppConfig, ExecutiveProfile } from './config.js';
-import type { BridgeConfigureMessage } from '../shared/protocol.js';
+import type {
+  BridgeConfigureMessage,
+  BridgeTextMessage,
+} from '../shared/protocol.js';
 import type { RawData } from 'ws';
 import type { MeetingToolsClient } from './meetingToolsClient.js';
 
@@ -16,11 +19,13 @@ import {
   findAuthorizedProfile,
   validateProjectEndpoint,
 } from './config.js';
+import type { SessionTicketStore } from './sessionTickets.js';
 
 const TOKEN_SCOPE = 'https://ai.azure.com/.default';
 const REALTIME_API_VERSION = '2025-11-15-preview';
 const MAX_BROWSER_MESSAGE_BYTES = 1_000_000;
 const MAX_MEETING_BRIEF_CHARACTERS = 4_000;
+const MAX_TEXT_MESSAGE_CHARACTERS = 8_000;
 
 function buildVoiceAgentUrl(profile: ExecutiveProfile): URL {
   const projectEndpoint = validateProjectEndpoint(profile.projectEndpoint);
@@ -68,6 +73,22 @@ function parseConfigureMessage(
   return { type: 'bridge.configure', meetingBrief, sessionId };
 }
 
+function parseTextMessage(
+  message: Record<string, unknown>,
+): BridgeTextMessage {
+  if (message.type !== 'bridge.text' || typeof message.text !== 'string') {
+    throw new Error('The text message is invalid.');
+  }
+  const text = message.text.trim();
+  if (!text) {
+    throw new Error('The text message cannot be empty.');
+  }
+  if (text.length > MAX_TEXT_MESSAGE_CHARACTERS) {
+    throw new Error('The text message must contain at most 8,000 characters.');
+  }
+  return { type: 'bridge.text', text };
+}
+
 function closePair(
   browser: WebSocket,
   foundry: WebSocket | undefined,
@@ -92,6 +113,7 @@ function closePair(
 export function createFoundryProxy(
   config: AppConfig,
   meetingTools: MeetingToolsClient,
+  sessionTickets: SessionTicketStore,
 ): {
   handleUpgrade: (
     request: IncomingMessage,
@@ -107,11 +129,14 @@ export function createFoundryProxy(
       let userId: string;
       let profile: ExecutiveProfile;
       try {
-        userId = resolveAuthenticatedUserId(request.headers, config.devUserId);
         const requestUrl = new URL(
           request.url ?? '',
           `http://${request.headers.host ?? 'localhost'}`,
         );
+        const ticket = requestUrl.searchParams.get('ticket') ?? '';
+        userId =
+          sessionTickets.consume(ticket) ??
+          resolveAuthenticatedUserId(request.headers, config.devUserId);
         profile = findAuthorizedProfile(
           config.profiles,
           requestUrl.searchParams.get('profile') ?? '',
@@ -277,6 +302,31 @@ export function createFoundryProxy(
               }
 
               if (
+                message.type === 'bridge.text'
+              ) {
+                const textMessage = parseTextMessage(message);
+                const events = [
+                  {
+                    type: 'conversation.item.create',
+                    item: {
+                      type: 'message',
+                      role: 'user',
+                      content: [{ type: 'input_text', text: textMessage.text }],
+                    },
+                  },
+                  { type: 'response.create' },
+                ];
+                if (foundry?.readyState === WebSocket.OPEN) {
+                  for (const foundryEvent of events) {
+                    foundry.send(JSON.stringify(foundryEvent));
+                  }
+                } else {
+                  pendingMessages.push(...events);
+                }
+                return;
+              }
+
+              if (
                 typeof message.type !== 'string' ||
                 !ALLOWED_BROWSER_EVENT_TYPES.has(message.type)
               ) {
@@ -316,4 +366,4 @@ export function createFoundryProxy(
   };
 }
 
-export { buildVoiceAgentUrl, parseConfigureMessage };
+export { buildVoiceAgentUrl, parseConfigureMessage, parseTextMessage };

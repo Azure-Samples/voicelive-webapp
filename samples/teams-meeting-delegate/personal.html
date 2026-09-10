@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Talk directly to a Microsoft Foundry voice agent in a Teams personal app."
+    />
+    <title>Foundry Voice Agent</title>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel" aria-labelledby="page-title">
+        <p class="eyebrow">Teams personal agent</p>
+        <h1 id="page-title">Talk to your Foundry voice agent</h1>
+        <p class="lede">
+          Speak or type privately with the same Microsoft Foundry Voice-First
+          Agent that can represent you in meetings.
+        </p>
+
+        <label for="profile">Agent profile</label>
+        <select id="profile" name="profile" required></select>
+
+        <label for="conversation-context">
+          Optional conversation context
+        </label>
+        <textarea
+          id="conversation-context"
+          maxlength="4000"
+          rows="3"
+          placeholder="Private one-to-one conversation context or objective."
+        ></textarea>
+
+        <div class="actions">
+          <button id="connect-button" type="button">Start conversation</button>
+          <button id="disconnect-button" type="button" disabled>
+            End conversation
+          </button>
+        </div>
+
+        <div class="status-grid">
+          <div>
+            <span>Foundry agent</span>
+            <strong id="agent-status">Not connected</strong>
+          </div>
+          <div>
+            <span>Microphone</span>
+            <strong id="microphone-status">Off</strong>
+          </div>
+          <div>
+            <span>Avatar</span>
+            <strong id="avatar-status">Waiting</strong>
+          </div>
+        </div>
+
+        <video
+          id="avatar-video"
+          class="avatar-video"
+          playsinline
+          autoplay
+          aria-label="Agent avatar video"
+        ></video>
+
+        <form id="text-form" class="text-form">
+          <label for="text-input">Message</label>
+          <div class="text-message-row">
+            <input
+              id="text-input"
+              type="text"
+              maxlength="8000"
+              autocomplete="off"
+              placeholder="Type a message to the agent"
+            />
+            <button id="send-button" type="submit" disabled>Send</button>
+          </div>
+        </form>
+
+        <section aria-labelledby="transcript-title">
+          <h2 id="transcript-title">Conversation</h2>
+          <ol id="transcript" class="transcript" aria-live="polite"></ol>
+        </section>
+
+        <p id="error" class="error" role="alert" hidden></p>
+      </section>
+    </main>
+    <script type="module" src="/src/client/personal.ts"></script>
+  </body>
+</html>

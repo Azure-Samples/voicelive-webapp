@@ -106,7 +106,9 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       ]
       scale: {
         minReplicas: 1
-        maxReplicas: 3
+        // Session tickets are one-use and process-local in this accelerator.
+        // Use a shared ticket store before increasing the replica count.
+        maxReplicas: 1
         rules: [
           {
             name: 'http'
@@ -127,14 +129,18 @@ resource authConfig 'Microsoft.App/containerApps/authConfigs@2024-03-01' = {
   name: 'current'
   properties: {
     globalValidation: {
-      redirectToProvider: 'azureactivedirectory'
-      unauthenticatedClientAction: 'RedirectToLoginPage'
+      unauthenticatedClientAction: 'AllowAnonymous'
     }
     httpSettings: {
       requireHttps: true
     }
     identityProviders: {
       azureActiveDirectory: {
+        validation: {
+          allowedAudiences: [
+            'api://${containerApp.properties.configuration.ingress.fqdn}/${entraClientId}'
+          ]
+        }
         registration: {
           clientId: entraClientId
           clientSecretSettingName: 'microsoft-provider-authentication-secret'

@@ -10,6 +10,7 @@ import { AcsTokenService } from './acsTokenService.js';
 import { findAuthorizedProfile, loadConfig } from './config.js';
 import { createFoundryProxy } from './foundryProxy.js';
 import { MeetingToolsClient } from './meetingToolsClient.js';
+import { SessionTicketStore } from './sessionTickets.js';
 
 if (existsSync('.env')) {
   process.loadEnvFile('.env');
@@ -20,16 +21,27 @@ const app = express();
 const server = createServer(app);
 const tokenService = new AcsTokenService(config.acsConnectionString);
 const meetingTools = new MeetingToolsClient(config);
-const foundryProxy = createFoundryProxy(config, meetingTools);
+const sessionTickets = new SessionTicketStore();
+const foundryProxy = createFoundryProxy(
+  config,
+  meetingTools,
+  sessionTickets,
+);
 
-app.use((_request, response, next) => {
+app.use((request, response, next) => {
+  const isTeamsPersonalTab = request.path === '/personal.html';
+  const frameAncestors = isTeamsPersonalTab
+    ? 'https://teams.microsoft.com https://*.teams.microsoft.com https://*.cloud.microsoft'
+    : "'none'";
   response.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; connect-src 'self' https: wss:; img-src 'self' data: blob:; media-src 'self' blob:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    `default-src 'self'; connect-src 'self' https: wss:; img-src 'self' data: blob:; media-src 'self' blob:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; frame-ancestors ${frameAncestors}; base-uri 'self'; form-action 'self'`,
   );
   response.setHeader('Referrer-Policy', 'no-referrer');
   response.setHeader('X-Content-Type-Options', 'nosniff');
-  response.setHeader('X-Frame-Options', 'DENY');
+  if (!isTeamsPersonalTab) {
+    response.setHeader('X-Frame-Options', 'DENY');
+  }
   next();
 });
 app.use(express.json({ limit: '16kb' }));
@@ -42,6 +54,26 @@ app.use('/api', (request, response, next) => {
 
 app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok' });
+});
+
+app.post('/api/session', (request, response) => {
+  try {
+    const userId = resolveAuthenticatedUserId(
+      request.headers,
+      config.devUserId,
+    );
+    const profileId =
+      typeof request.body?.profileId === 'string'
+        ? request.body.profileId
+        : '';
+    findAuthorizedProfile(config.profiles, profileId, userId);
+    response.setHeader('Cache-Control', 'no-store');
+    response.json({ ticket: sessionTickets.issue(userId) });
+  } catch (error) {
+    response
+      .status(403)
+      .json({ error: error instanceof Error ? error.message : 'Unauthorized' });
+  }
 });
 
 app.get('/api/profiles', (request, response) => {

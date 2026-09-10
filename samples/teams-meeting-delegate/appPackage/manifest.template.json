@@ -1,0 +1,41 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.20/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.20",
+  "version": "1.0.0",
+  "id": "${TEAMS_APP_ID}",
+  "developer": {
+    "name": "${DEVELOPER_NAME}",
+    "websiteUrl": "https://${APP_HOST}",
+    "privacyUrl": "https://${APP_HOST}/privacy",
+    "termsOfUseUrl": "https://${APP_HOST}/terms"
+  },
+  "name": {
+    "short": "Foundry Voice Agent",
+    "full": "Microsoft Foundry Voice Agent"
+  },
+  "description": {
+    "short": "Talk directly to a Foundry voice agent in Teams.",
+    "full": "A private voice, text, and avatar experience powered by an existing Microsoft Foundry Voice-First Agent."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#6264A7",
+  "staticTabs": [
+    {
+      "entityId": "foundryVoiceAgent",
+      "name": "Voice agent",
+      "contentUrl": "https://${APP_HOST}/personal.html?inTeams=1",
+      "websiteUrl": "https://${APP_HOST}/personal.html",
+      "scopes": ["personal"]
+    }
+  ],
+  "permissions": ["identity"],
+  "devicePermissions": ["media"],
+  "validDomains": ["${APP_HOST}"],
+  "webApplicationInfo": {
+    "id": "${ENTRA_CLIENT_ID}",
+    "resource": "api://${APP_HOST}/${ENTRA_CLIENT_ID}"
+  }
+}

@@ -2,9 +2,11 @@ import { base64ToBytes, bytesToBase64 } from './audio';
 import { AvatarSession } from './avatarSession';
 
 interface FoundryVoiceSessionOptions {
+  authToken?: string;
   profileId: string;
   sessionId: string;
   meetingBrief: string;
+  onClose?: () => void;
   onStatus: (status: string) => void;
   onAvatarStatus: (status: string) => void;
   onAudio: (pcmBytes: Uint8Array) => Promise<void>;
@@ -31,12 +33,42 @@ export class FoundryVoiceSession {
     );
   }
 
-  public connect(): Promise<void> {
+  public async connect(): Promise<void> {
+    const response = await fetch('/api/session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.#options.authToken
+          ? { Authorization: `Bearer ${this.#options.authToken}` }
+          : {}),
+      },
+      body: JSON.stringify({ profileId: this.#options.profileId }),
+    });
+    const session = (await response.json()) as {
+      error?: string;
+      ticket?: string;
+    };
+    if (!response.ok || !session.ticket) {
+      throw new Error(session.error || 'Could not create a voice session.');
+    }
+
+    return this.#connectSocket(session.ticket);
+  }
+
+  public sendText(text: string): void {
+    this.sendEvent({
+      type: 'bridge.text',
+      text,
+    });
+  }
+
+  #connectSocket(ticket: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const url = new URL('/api/voice', window.location.origin);
       url.protocol = protocol;
       url.searchParams.set('profile', this.#options.profileId);
+      url.searchParams.set('ticket', ticket);
 
       const socket = new WebSocket(url);
       this.#socket = socket;
@@ -90,6 +122,7 @@ export class FoundryVoiceSession {
       socket.onclose = () => {
         window.clearTimeout(connectTimeout);
         this.#options.onStatus('Disconnected');
+        this.#options.onClose?.();
       };
     });
   }

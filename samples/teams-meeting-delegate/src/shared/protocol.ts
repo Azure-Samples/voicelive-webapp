@@ -20,6 +20,11 @@ export interface BridgeReadyMessage {
   type: 'bridge.ready';
 }
 
+export interface BridgeTextMessage {
+  type: 'bridge.text';
+  text: string;
+}
+
 export interface BridgeErrorMessage {
   type: 'bridge.error';
   message: string;
