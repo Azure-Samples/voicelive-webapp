@@ -56,6 +56,10 @@ Microsoft Graph application-hosted media bot on supported Windows Server
 infrastructure; that is a different host adapter, while the Foundry agent and
 security boundary can remain the same.
 
+For the selected-user Work IQ identity model, an unattended start API
+contract, and the automatic meeting-summary boundary, see
+[`WORK-IQ-AND-UNATTENDED.md`](WORK-IQ-AND-UNATTENDED.md).
+
 ## Configure profiles
 
 Copy `.env.example` to `.env`. `EXECUTIVE_PROFILES_JSON` is a JSON array:
@@ -135,6 +139,10 @@ adds deterministic disclosure filtering, transcript-backed recaps, calendar
 booking, out-of-office guidance, and Web PubSub hand controls. Deploy it, set
 `MEETING_TOOLS_BASE_URL` and `MEETING_TOOLS_FUNCTION_KEY` on this host, and
 attach its OpenAPI document to the Foundry agent.
+
+The recap tool returns transcript-backed source data for the agent. Automatic
+post-meeting summary generation and delivery are not implemented in this
+sample.
 
 ## Security notes
 

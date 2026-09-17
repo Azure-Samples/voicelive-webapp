@@ -6,7 +6,10 @@ A real-time voice chat application with avatar support built using Azure Voice L
 
 - [`samples/teams-meeting-delegate`](samples/teams-meeting-delegate) connects
   an existing Microsoft Foundry Voice-First Agent and avatar to a Microsoft
-  Teams meeting through Azure Communication Services.
+  Teams meeting through Azure Communication Services. Its
+  [extension design](samples/teams-meeting-delegate/WORK-IQ-AND-UNATTENDED.md)
+  covers selected-user Work IQ grounding, unattended startup, and automatic
+  meeting summaries.
 - [`samples/meeting-tools-function`](samples/meeting-tools-function) is an
   optional Azure Functions/OpenAPI tool template with customizable meeting
   disclosure guardrails, recaps, calendar actions, out-of-office guidance,

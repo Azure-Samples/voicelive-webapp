@@ -16,6 +16,12 @@ The ACS bridge still owns only real-time mechanics that cannot be delegated to
 an HTTP tool: audio/video transport, barge-in, floor safety, and executing the
 generic hand control command on the active Teams call.
 
+`tools/meeting-recap` returns the stored transcript and identifies records
+that address or mention the executive. It is a factual recap source, not an
+automatic post-meeting summary generator. See the
+[`teams-meeting-delegate` extension design](../teams-meeting-delegate/WORK-IQ-AND-UNATTENDED.md)
+for the recommended summary workflow.
+
 ## Foundry tool setup
 
 After deployment, attach:
