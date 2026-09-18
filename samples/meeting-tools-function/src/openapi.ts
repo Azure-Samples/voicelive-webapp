@@ -131,6 +131,29 @@ export function createOpenApi(origin: string): object {
           responses: { '200': { description: 'Meeting transcript records.' } },
         },
       },
+      '/tools/meeting-summary': {
+        post: {
+          operationId: 'get_finalized_meeting_summary',
+          summary:
+            'Read the finalized extractive meeting summary with decisions, action items, open questions, and executive mentions.',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['profileId', 'sessionId'],
+                  properties: {
+                    profileId: { type: 'string' },
+                    sessionId: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          responses: { '200': { description: 'Finalized meeting summary.' } },
+        },
+      },
       '/tools/oof-catchup': {
         post: {
           operationId: 'get_oof_catchup_guidance',

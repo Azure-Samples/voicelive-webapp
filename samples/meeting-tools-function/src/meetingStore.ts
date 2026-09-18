@@ -1,5 +1,6 @@
 import {
   AppendBlobClient,
+  BlockBlobClient,
   BlobServiceClient,
   ContainerClient,
 } from '@azure/storage-blob';
@@ -9,6 +10,7 @@ import { classifyOwnerReference } from './meetingPatterns.js';
 import type {
   ExecutiveProfile,
   MeetingEvent,
+  MeetingSummary,
   StoredMeetingEvent,
 } from './types.js';
 
@@ -36,6 +38,13 @@ function safeSessionId(sessionId: string): string {
 async function getAppendBlob(sessionId: string): Promise<AppendBlobClient> {
   const container = await getContainer();
   return container.getAppendBlobClient(`${safeSessionId(sessionId)}.ndjson`);
+}
+
+async function getSummaryBlob(sessionId: string): Promise<BlockBlobClient> {
+  const container = await getContainer();
+  return container.getBlockBlobClient(
+    `${safeSessionId(sessionId)}.summary.json`,
+  );
 }
 
 export async function appendMeetingEvent(
@@ -68,6 +77,30 @@ export async function readMeeting(
     .split('\n')
     .filter(Boolean)
     .map(line => JSON.parse(line) as StoredMeetingEvent);
+}
+
+export async function writeMeetingSummary(
+  summary: MeetingSummary,
+): Promise<void> {
+  const blob = await getSummaryBlob(summary.sessionId);
+  const content = JSON.stringify(summary, undefined, 2);
+  await blob.upload(content, Buffer.byteLength(content), {
+    blobHTTPHeaders: {
+      blobContentType: 'application/json',
+    },
+  });
+}
+
+export async function readMeetingSummary(
+  sessionId: string,
+): Promise<MeetingSummary | undefined> {
+  const blob = await getSummaryBlob(sessionId);
+  if (!(await blob.exists())) {
+    return undefined;
+  }
+  const response = await blob.download();
+  const body = await streamToText(response.readableStreamBody);
+  return JSON.parse(body) as MeetingSummary;
 }
 
 async function streamToText(

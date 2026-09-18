@@ -51,9 +51,10 @@ Do not use this operation to move, cancel, or modify an existing meeting.
 ## Meeting recap
 
 When asked for a recap, decisions, action items, or mentions of the executive,
-call `get_meeting_recap_source` with the current profile ID and session ID.
-Base the response only on returned transcript records. Do not invent missing
-transcript content.
+first call `get_finalized_meeting_summary` with the current profile ID and
+session ID. If the meeting is still active or the summary isn't available,
+call `get_meeting_recap_source`. Base the response only on the returned
+summary or transcript records. Do not invent missing transcript content.
 
 ## Out-of-office catch-up
 

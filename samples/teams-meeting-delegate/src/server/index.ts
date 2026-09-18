@@ -10,6 +10,10 @@ import { AcsTokenService } from './acsTokenService.js';
 import { findAuthorizedProfile, loadConfig } from './config.js';
 import { createFoundryProxy } from './foundryProxy.js';
 import { MeetingToolsClient } from './meetingToolsClient.js';
+import {
+  extractBearerToken,
+  WorkIqClient,
+} from './workIqClient.js';
 
 if (existsSync('.env')) {
   process.loadEnvFile('.env');
@@ -20,6 +24,7 @@ const app = express();
 const server = createServer(app);
 const tokenService = new AcsTokenService(config.acsConnectionString);
 const meetingTools = new MeetingToolsClient(config);
+const workIq = new WorkIqClient(config.workIq);
 const foundryProxy = createFoundryProxy(config, meetingTools);
 
 app.use((_request, response, next) => {
@@ -80,6 +85,54 @@ app.get('/api/acs/token', async (request, response) => {
     response.status(403).json({
       error:
         error instanceof Error ? error.message : 'Could not issue ACS token.',
+    });
+  }
+});
+
+app.post('/api/workiq/ask', async (request, response) => {
+  try {
+    const userId = resolveAuthenticatedUserId(
+      request.headers,
+      config.devUserId,
+    );
+    const profileId =
+      typeof request.body?.profileId === 'string'
+        ? request.body.profileId
+        : '';
+    findAuthorizedProfile(config.profiles, profileId, userId);
+    if (!workIq.configured) {
+      response.status(501).json({ error: 'Work IQ is not configured.' });
+      return;
+    }
+    const question =
+      typeof request.body?.question === 'string'
+        ? request.body.question
+        : '';
+    const timeZone =
+      typeof request.body?.timeZone === 'string'
+        ? request.body.timeZone
+        : '';
+    const timeZoneOffset =
+      typeof request.body?.timeZoneOffset === 'number'
+        ? request.body.timeZoneOffset
+        : Number.NaN;
+    const token = extractBearerToken(
+      request.headers.authorization,
+      config.workIqDevAccessToken,
+    );
+    response.setHeader('Cache-Control', 'no-store');
+    response.json(
+      await workIq.ask(token, question, {
+        timeZone,
+        timeZoneOffset,
+      }),
+    );
+  } catch (error) {
+    response.status(403).json({
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Could not query Work IQ.',
     });
   }
 });

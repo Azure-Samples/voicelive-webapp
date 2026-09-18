@@ -43,6 +43,11 @@ export const config = {
   storageConnectionString: required('AzureWebJobsStorage'),
   webPubSubConnectionString: required('WEB_PUBSUB_CONNECTION_STRING'),
   webPubSubHub: process.env.WEB_PUBSUB_HUB?.trim() || 'meeting-control',
+  unattendedMediaHostBaseUrl:
+    process.env.UNATTENDED_MEDIA_HOST_BASE_URL?.trim().replace(/\/$/, '') ||
+    undefined,
+  unattendedMediaHostKey:
+    process.env.UNATTENDED_MEDIA_HOST_KEY?.trim() || undefined,
 };
 
 export function getProfile(profileId: string): ExecutiveProfile {

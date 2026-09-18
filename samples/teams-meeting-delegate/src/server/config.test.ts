@@ -91,4 +91,39 @@ describe('configuration', () => {
 
     expect(loadConfig().profiles[0]?.agentName).toBe('cto-agent');
   });
+
+  it('enables Work IQ only when the complete OBO configuration is present', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('ACS_CONNECTION_STRING', 'endpoint=https://acs;accesskey=secret');
+    vi.stubEnv(
+      'EXECUTIVE_PROFILES_JSON',
+      JSON.stringify([
+        {
+          id: 'cto',
+          displayName: 'CTO',
+          projectEndpoint:
+            'https://resource.services.ai.azure.com/api/projects/project',
+          agentName: 'cto-agent',
+          owner: 'CTO',
+          persona: 'Delegate',
+          structuredInputsEnabled: false,
+          allowedUserIds: ['allowed-user'],
+        },
+      ]),
+    );
+    vi.stubEnv(
+      'WORKIQ_TENANT_ID',
+      '11111111-1111-1111-1111-111111111111',
+    );
+    expect(() => loadConfig()).toThrow('must be configured together');
+
+    vi.stubEnv(
+      'WORKIQ_CLIENT_ID',
+      '22222222-2222-2222-2222-222222222222',
+    );
+    vi.stubEnv('WORKIQ_CLIENT_SECRET', 'secret');
+    expect(loadConfig().workIq?.clientId).toBe(
+      '22222222-2222-2222-2222-222222222222',
+    );
+  });
 });

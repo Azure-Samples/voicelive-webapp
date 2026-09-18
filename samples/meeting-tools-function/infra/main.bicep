@@ -9,6 +9,13 @@ param baseName string = 'foundry-meeting-tools'
 @description('Base64-encoded executive profile configuration.')
 param executiveProfilesBase64 string
 
+@description('Optional base URL of the Windows application-hosted Teams media bot.')
+param unattendedMediaHostBaseUrl string = ''
+
+@secure()
+@description('Optional shared credential used only between this orchestrator and the media bot.')
+param unattendedMediaHostKey string = ''
+
 var suffix = uniqueString(resourceGroup().id, baseName)
 var functionAppName = take('${baseName}-${suffix}', 60)
 var storageName = take('fmt${suffix}', 24)
@@ -116,6 +123,14 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'EXECUTIVE_PROFILES_BASE64'
           value: executiveProfilesBase64
+        }
+        {
+          name: 'UNATTENDED_MEDIA_HOST_BASE_URL'
+          value: unattendedMediaHostBaseUrl
+        }
+        {
+          name: 'UNATTENDED_MEDIA_HOST_KEY'
+          value: unattendedMediaHostKey
         }
       ]
     }
