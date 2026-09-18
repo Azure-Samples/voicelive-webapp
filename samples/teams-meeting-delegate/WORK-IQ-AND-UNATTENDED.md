@@ -16,11 +16,11 @@ application-hosted media bot.
 
 ### Can the delegate produce a meeting summary?
 
-**Partially, today.** The optional `meeting-tools-function` stores transcript
-events and gives the Foundry agent a factual recap source. The current sample
-does not automatically generate and deliver a summary when the meeting ends.
-That requires the post-meeting workflow described in
-[Meeting summaries](#meeting-summaries).
+**Yes for an extractive summary.** The optional `meeting-tools-function`
+stores transcript events and automatically finalizes a transcript-backed
+summary when the meeting bridge closes. It captures overview statements,
+decisions, action items, open questions, and executive mentions. Generative
+summary rewriting and external delivery remain optional follow-on work.
 
 ### Can we link Work IQ for a selected user to the agent?
 
@@ -48,7 +48,7 @@ command API and worker lifecycle are described in
 | Start through an API | Not supported; the browser owns the media session | Durable command API and worker on the media-bot host |
 | Work IQ grounding | Configure the connection on the selected profile's Foundry agent | One agent/profile and delegated Work IQ authorization per executive |
 | Meeting recap source | Transcript events are stored by `meeting-tools-function` | Keep as the factual input to a summary workflow |
-| Automatic post-meeting summary | Not implemented | Trigger a separate summary workflow after the call and transcript are finalized |
+| Automatic post-meeting summary | Extractive transcript-backed summary is implemented | Add optional generative rewriting and customer-approved delivery |
 
 ## Link Work IQ to a selected executive
 
@@ -184,17 +184,17 @@ The worker must:
 
 ## Meeting summaries
 
-The sibling `meeting-tools-function` already stores transcription events and
-returns the authoritative recap source through `tools/meeting-recap`. It does
-not currently create or deliver an automatic post-meeting summary.
+The sibling `meeting-tools-function` stores transcription events, returns the
+authoritative recap source through `tools/meeting-recap`, and writes an
+extractive summary through `tools/meeting-summary` when the bridge closes.
 
-Add automatic summaries as a separate workflow after unattended joining is in
-place:
+For a generative summary and customer delivery, extend the workflow:
 
 1. The media host marks the call completed.
 2. The transcript writer flushes all pending events and records a finalized
    timestamp.
-3. A durable summary job reads `tools/meeting-recap`.
+3. A durable summary job reads `tools/meeting-summary` and
+   `tools/meeting-recap`.
 4. The configured Foundry text-capable summarization flow produces decisions,
    action items, open questions, and mentions of the executive.
 5. The workflow stores the summary with its transcript references and sends it

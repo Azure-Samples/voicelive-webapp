@@ -23,6 +23,16 @@ param entraTenantId string
 @description('Client secret for the Microsoft Entra application.')
 param entraClientSecret string
 
+@description('Optional tenant ID used for Work IQ on-behalf-of token exchange.')
+param workIqTenantId string = ''
+
+@description('Optional client ID used for Work IQ on-behalf-of token exchange.')
+param workIqClientId string = ''
+
+@secure()
+@description('Optional client secret used for Work IQ on-behalf-of token exchange.')
+param workIqClientSecret string = ''
+
 var resourceToken = toLower(uniqueString(subscription().id, environmentName))
 var resourceGroupName = 'rg-${environmentName}'
 var appName = 'voice-delegate-${resourceToken}'
@@ -46,6 +56,9 @@ module resources 'resources.bicep' = {
     entraClientId: entraClientId
     entraClientSecret: entraClientSecret
     entraTenantId: entraTenantId
+    workIqTenantId: workIqTenantId
+    workIqClientId: workIqClientId
+    workIqClientSecret: workIqClientSecret
     location: location
     logAnalyticsName: logAnalyticsName
     managedEnvironmentName: managedEnvironmentName

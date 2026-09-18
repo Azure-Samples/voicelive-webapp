@@ -7,9 +7,65 @@ param entraClientId string
 @secure()
 param entraClientSecret string
 param entraTenantId string
+param workIqTenantId string
+param workIqClientId string
+@secure()
+param workIqClientSecret string
 param location string
 param logAnalyticsName string
 param managedEnvironmentName string
+
+var workIqConfigured = !empty(workIqTenantId) && !empty(workIqClientId) && !empty(workIqClientSecret)
+var containerSecrets = concat([
+  {
+    name: 'acs-connection-string'
+    value: communicationService.listKeys().primaryConnectionString
+  }
+  {
+    name: 'executive-profiles'
+    value: executiveProfilesBase64
+  }
+  {
+    name: 'microsoft-provider-authentication-secret'
+    value: entraClientSecret
+  }
+], workIqConfigured ? [
+  {
+    name: 'workiq-client-secret'
+    value: workIqClientSecret
+  }
+] : [])
+var containerEnvironment = concat([
+  {
+    name: 'PORT'
+    value: '8080'
+  }
+  {
+    name: 'NODE_ENV'
+    value: 'production'
+  }
+  {
+    name: 'ACS_CONNECTION_STRING'
+    secretRef: 'acs-connection-string'
+  }
+  {
+    name: 'EXECUTIVE_PROFILES_BASE64'
+    secretRef: 'executive-profiles'
+  }
+], workIqConfigured ? [
+  {
+    name: 'WORKIQ_TENANT_ID'
+    value: workIqTenantId
+  }
+  {
+    name: 'WORKIQ_CLIENT_ID'
+    value: workIqClientId
+  }
+  {
+    name: 'WORKIQ_CLIENT_SECRET'
+    secretRef: 'workiq-client-secret'
+  }
+] : [])
 
 resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: logAnalyticsName
@@ -60,44 +116,14 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
         targetPort: 8080
         transport: 'auto'
       }
-      secrets: [
-        {
-          name: 'acs-connection-string'
-          value: communicationService.listKeys().primaryConnectionString
-        }
-        {
-          name: 'executive-profiles'
-          value: executiveProfilesBase64
-        }
-        {
-          name: 'microsoft-provider-authentication-secret'
-          value: entraClientSecret
-        }
-      ]
+      secrets: containerSecrets
     }
     template: {
       containers: [
         {
           name: 'web'
           image: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
-          env: [
-            {
-              name: 'PORT'
-              value: '8080'
-            }
-            {
-              name: 'NODE_ENV'
-              value: 'production'
-            }
-            {
-              name: 'ACS_CONNECTION_STRING'
-              secretRef: 'acs-connection-string'
-            }
-            {
-              name: 'EXECUTIVE_PROFILES_BASE64'
-              secretRef: 'executive-profiles'
-            }
-          ]
+          env: containerEnvironment
           resources: {
             cpu: json('0.5')
             memory: '1Gi'

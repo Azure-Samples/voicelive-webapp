@@ -140,9 +140,69 @@ booking, out-of-office guidance, and Web PubSub hand controls. Deploy it, set
 `MEETING_TOOLS_BASE_URL` and `MEETING_TOOLS_FUNCTION_KEY` on this host, and
 attach its OpenAPI document to the Foundry agent.
 
-The recap tool returns transcript-backed source data for the agent. Automatic
-post-meeting summary generation and delivery are not implemented in this
-sample.
+The host finalizes an extractive meeting summary when its Foundry WebSocket
+closes. The meeting-tools service stores that summary and exposes it through
+`POST /api/tools/meeting-summary`. It contains transcript-backed overview
+statements, decisions, action items, open questions, and executive mentions.
+
+## Optional Work IQ API
+
+The server includes an OBO Work IQ endpoint that remains disabled unless
+`WORKIQ_TENANT_ID`, `WORKIQ_CLIENT_ID`, and `WORKIQ_CLIENT_SECRET` are all
+configured. The Entra application needs the delegated
+`api://workiq.svc.cloud.microsoft/WorkIQAgent.Ask` permission with tenant
+admin consent.
+
+Call the endpoint with a user token that Easy Auth has validated for this
+application:
+
+```http
+POST /api/workiq/ask
+Authorization: Bearer <signed-in-user-token>
+Content-Type: application/json
+
+{
+  "profileId": "executive-1",
+  "question": "What should I know before today's customer meeting?",
+  "timeZone": "Asia/Tokyo",
+  "timeZoneOffset": 540
+}
+```
+
+The selected profile must allow the same signed-in user. The server exchanges
+the incoming token through OBO and never accepts a caller-selected Work IQ
+user ID.
+
+For local development only, `WORKIQ_DEV_ACCESS_TOKEN` can supply the incoming
+user token. Never deploy a user token as an application setting.
+
+## Optional unattended orchestration
+
+The meeting-tools service exposes persisted, idempotent create, status, and
+cancel endpoints:
+
+```http
+POST /api/delegations
+x-functions-key: <function-key>
+Content-Type: application/json
+
+{
+  "clientRequestId": "ricoh-quarterly-review-20260918",
+  "profileId": "executive-1",
+  "meetingJoinUrl": "https://teams.microsoft.com/l/meetup-join/...",
+  "meetingBrief": "Represent the executive during the quarterly review."
+}
+```
+
+Configure `UNATTENDED_MEDIA_HOST_BASE_URL` and
+`UNATTENDED_MEDIA_HOST_KEY` on the meeting-tools Function App. The
+orchestrator validates the profile and meeting URL, prevents duplicate starts
+for the same client request, persists status in Blob Storage, and invokes the
+separate Windows media host.
+
+Use `GET /api/delegations/{id}` to read status and
+`DELETE /api/delegations/{id}` to end an active delegate. The browser-hosted
+ACS path remains available and does not use these endpoints.
 
 ## Security notes
 

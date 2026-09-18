@@ -14,13 +14,22 @@ export interface AppConfig {
   nodeEnv: string;
   acsConnectionString: string;
   devUserId?: string;
+  workIq?: WorkIqConfig;
+  workIqDevAccessToken?: string;
   meetingToolsBaseUrl?: string;
   meetingToolsFunctionKey?: string;
   profiles: ExecutiveProfile[];
 }
 
+export interface WorkIqConfig {
+  tenantId: string;
+  clientId: string;
+  clientSecret: string;
+}
+
 const FOUNDRY_HOST_PATTERN = /^[\da-z-]+\.services\.ai\.azure\.com$/i;
 const PROJECT_PATH_PATTERN = /^\/api\/projects\/[^/]+$/;
+const ENTRA_ID_PATTERN = /^[0-9a-f-]{36}$/i;
 
 function requiredEnvironmentVariable(name: string): string {
   const value = process.env[name]?.trim();
@@ -129,6 +138,29 @@ export function loadConfig(): AppConfig {
   const rawProfiles = encodedProfiles
     ? Buffer.from(encodedProfiles, 'base64').toString('utf8')
     : requiredEnvironmentVariable('EXECUTIVE_PROFILES_JSON');
+  const workIqValues = {
+    tenantId: process.env.WORKIQ_TENANT_ID?.trim() || '',
+    clientId: process.env.WORKIQ_CLIENT_ID?.trim() || '',
+    clientSecret: process.env.WORKIQ_CLIENT_SECRET?.trim() || '',
+  };
+  const configuredWorkIqValues = Object.values(workIqValues).filter(Boolean);
+  if (
+    configuredWorkIqValues.length > 0 &&
+    configuredWorkIqValues.length !== Object.keys(workIqValues).length
+  ) {
+    throw new Error(
+      'WORKIQ_TENANT_ID, WORKIQ_CLIENT_ID, and WORKIQ_CLIENT_SECRET must be configured together.',
+    );
+  }
+  if (
+    configuredWorkIqValues.length > 0 &&
+    (!ENTRA_ID_PATTERN.test(workIqValues.tenantId) ||
+      !ENTRA_ID_PATTERN.test(workIqValues.clientId))
+  ) {
+    throw new Error(
+      'WORKIQ_TENANT_ID and WORKIQ_CLIENT_ID must be Microsoft Entra GUIDs.',
+    );
+  }
 
   return {
     port,
@@ -137,6 +169,12 @@ export function loadConfig(): AppConfig {
     devUserId:
       nodeEnv === 'development'
         ? process.env.DEV_USER_ID?.trim() || undefined
+        : undefined,
+    workIq:
+      configuredWorkIqValues.length > 0 ? workIqValues : undefined,
+    workIqDevAccessToken:
+      nodeEnv === 'development'
+        ? process.env.WORKIQ_DEV_ACCESS_TOKEN?.trim() || undefined
         : undefined,
     meetingToolsBaseUrl:
       process.env.MEETING_TOOLS_BASE_URL?.trim().replace(/\/$/, '') ||

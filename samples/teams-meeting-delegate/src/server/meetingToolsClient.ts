@@ -43,6 +43,19 @@ export class MeetingToolsClient {
     });
   }
 
+  public async finalizeMeeting(
+    profile: ExecutiveProfile,
+    sessionId: string,
+  ): Promise<void> {
+    if (!this.configured) {
+      return;
+    }
+    await this.#request('/api/bridge/finalize', {
+      profileId: profile.id,
+      sessionId,
+    });
+  }
+
   async #request(
     path: string,
     body: Record<string, unknown>,

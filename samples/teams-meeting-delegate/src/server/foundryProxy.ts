@@ -130,6 +130,9 @@ export function createFoundryProxy(
       server.handleUpgrade(request, socket, head, browser => {
         let foundry: WebSocket | undefined;
         let configured = false;
+        let meetingSessionId: string | undefined;
+        let finalizePromise: Promise<void> | undefined;
+        const pendingRecordings = new Set<Promise<void>>();
         const pendingMessages: Array<Record<string, unknown>> = [];
         const configurationTimeout = setTimeout(() => {
           browser.send(
@@ -144,6 +147,7 @@ export function createFoundryProxy(
         const connectFoundry = async (
           configureMessage: BridgeConfigureMessage,
         ): Promise<void> => {
+          meetingSessionId = configureMessage.sessionId;
           const token = await credential.getToken(TOKEN_SCOPE);
           if (!token?.token) {
             throw new Error('Could not acquire a Foundry access token.');
@@ -215,7 +219,7 @@ export function createFoundryProxy(
                       ? 'agent'
                       : undefined;
                 if (speaker && transcript) {
-                  void meetingTools
+                  const recording = meetingTools
                     .recordEvent(profile, {
                       sessionId: configureMessage.sessionId,
                       speaker,
@@ -225,7 +229,11 @@ export function createFoundryProxy(
                       console.error(
                         `Could not persist meeting transcript: ${error instanceof Error ? error.message : 'unknown error'}`,
                       );
+                    })
+                    .finally(() => {
+                      pendingRecordings.delete(recording);
                     });
+                  pendingRecordings.add(recording);
                 }
               } catch {
                 // Binary and non-JSON Foundry frames are forwarded unchanged.
@@ -256,6 +264,20 @@ export function createFoundryProxy(
             }
             closePair(browser, foundry, 1011, 'Foundry connection failed');
           });
+        };
+
+        const finalizeMeeting = (): Promise<void> => {
+          finalizePromise ??= (async () => {
+            await Promise.allSettled([...pendingRecordings]);
+            if (meetingSessionId) {
+              await meetingTools.finalizeMeeting(profile, meetingSessionId);
+            }
+          })().catch(error => {
+            console.error(
+              `Could not finalize meeting summary: ${error instanceof Error ? error.message : 'unknown error'}`,
+            );
+          });
+          return finalizePromise;
         };
 
         browser.on('message', data => {
@@ -305,10 +327,12 @@ export function createFoundryProxy(
 
         browser.on('close', () => {
           clearTimeout(configurationTimeout);
+          void finalizeMeeting();
           closePair(browser, foundry);
         });
         browser.on('error', () => {
           clearTimeout(configurationTimeout);
+          void finalizeMeeting();
           closePair(browser, foundry, 1011, 'Browser connection failed');
         });
       });
